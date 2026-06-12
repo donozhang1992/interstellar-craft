@@ -8,21 +8,183 @@
       html,
       body {
         margin: 0;
-        height: 100%;
-        background: #05060d;
-        color: #b3bcdf;
-        font-family: 'Segoe UI', system-ui, sans-serif;
+        padding: 0;
         overflow: hidden;
+        background: #000;
+        height: 100%;
       }
       #app {
+        width: 100%;
         height: 100%;
+      }
+      canvas {
+        display: block;
+      }
+
+      #crosshair {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        z-index: 10;
+        opacity: 0.85;
+      }
+      #crosshair::before,
+      #crosshair::after {
+        content: '';
+        position: absolute;
+        background: #fff;
+        mix-blend-mode: difference;
+      }
+      #crosshair::before {
+        width: 16px;
+        height: 2px;
+        left: -8px;
+        top: -1px;
+      }
+      #crosshair::after {
+        width: 2px;
+        height: 16px;
+        left: -1px;
+        top: -8px;
+      }
+
+      #hotbar {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 6px;
+        z-index: 10;
+        pointer-events: none;
+      }
+      .slot {
+        width: 52px;
+        height: 52px;
+        border-radius: 8px;
+        background: rgba(10, 12, 24, 0.55);
+        border: 2px solid rgba(160, 170, 220, 0.35);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #cfd6ff;
+        font:
+          10px/1.2 'Segoe UI',
+          sans-serif;
+        backdrop-filter: blur(4px);
+      }
+      .slot.active {
+        border-color: #ffd98a;
+        box-shadow: 0 0 12px rgba(255, 217, 138, 0.5);
+      }
+      .slot .swatch {
+        width: 24px;
+        height: 24px;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        image-rendering: pixelated;
+      }
+
+      #overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at center, rgba(6, 8, 20, 0.82), rgba(0, 0, 0, 0.94));
+        color: #e6e9ff;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        cursor: pointer;
+        text-align: center;
+        transition: opacity 0.4s;
+      }
+      #overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #overlay h1 {
+        font-size: 42px;
+        margin: 0 0 6px;
+        letter-spacing: 8px;
+        font-weight: 300;
+        background: linear-gradient(180deg, #fff, #ffb36b);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+      #overlay .sub {
+        color: #9aa3cc;
+        margin-bottom: 28px;
+        letter-spacing: 3px;
+        font-size: 13px;
+      }
+      #overlay .keys {
         display: grid;
-        place-items: center;
+        grid-template-columns: auto auto;
+        gap: 6px 18px;
+        font-size: 14px;
+        color: #b9c2ec;
+        text-align: left;
+        margin-bottom: 30px;
+      }
+      #overlay .keys b {
+        color: #ffd98a;
+        font-weight: 600;
+      }
+      #overlay .start {
+        font-size: 16px;
+        color: #fff;
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        padding: 10px 34px;
+        border-radius: 999px;
+        letter-spacing: 4px;
+      }
+      #overlay .start:hover {
+        background: rgba(255, 255, 255, 0.1);
+      }
+
+      #info {
+        position: fixed;
+        left: 12px;
+        top: 10px;
+        z-index: 10;
+        pointer-events: none;
+        color: rgba(200, 210, 255, 0.55);
+        font:
+          12px/1.6 'Segoe UI',
+          system-ui,
+          sans-serif;
+        text-shadow: 0 1px 2px #000;
       }
     </style>
   </head>
   <body>
     <div id="app"></div>
+    <div id="crosshair"></div>
+    <div id="hotbar"></div>
+    <div id="info"></div>
+
+    <div id="overlay">
+      <h1>INTERSTELLAR CRAFT</h1>
+      <div class="sub">VOXEL WORLD &middot; BENEATH GARGANTUA</div>
+      <div class="keys">
+        <span><b>W A S D</b></span
+        ><span>Move</span> <span><b>Space</b></span
+        ><span>Jump (low gravity)</span> <span><b>Shift</b></span
+        ><span>Sprint</span> <span><b>Left click</b></span
+        ><span>Mine block</span> <span><b>Right click</b></span
+        ><span>Place block</span> <span><b>1 - 6 / Wheel</b></span
+        ><span>Select block</span> <span><b>F</b></span
+        ><span>Fly mode (Space up / Ctrl down)</span>
+      </div>
+      <div class="start">CLICK&nbsp;TO&nbsp;START</div>
+    </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
