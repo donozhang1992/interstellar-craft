@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`mulberry32 > matches the frozen reference sequence for the world seed 0x7e 1`] = `
+[
+  0.5042833425104618,
+  0.8075809231959283,
+  0.32898259814828634,
+]
+`;

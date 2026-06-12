@@ -21,8 +21,14 @@ export default tseslint.config(
         'error',
         {
           patterns: [
-            { group: ['three', 'three/*'], message: 'src/core must not depend on three.js (TECH_SPEC §2)' },
-            { group: ['**/render/**', '**/game/**'], message: 'src/core must not import render/game (TECH_SPEC §2)' },
+            {
+              group: ['three', 'three/*'],
+              message: 'src/core must not depend on three.js (TECH_SPEC §2)',
+            },
+            {
+              group: ['**/render/**', '**/game/**'],
+              message: 'src/core must not import render/game (TECH_SPEC §2)',
+            },
           ],
         },
       ],
