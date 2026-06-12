@@ -1,0 +1,84 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MINING_TIME_MATRIX (13 blocks × 4 tiers — M1 exit criterion) > matches the frozen snapshot (null where tier < minTool) 1`] = `
+{
+  "1": {
+    "hand": 0.6,
+    "mk1": 0.3,
+    "mk2": 0.15,
+    "plasma": 0.075,
+  },
+  "10": {
+    "hand": 0.5,
+    "mk1": 0.25,
+    "mk2": 0.125,
+    "plasma": 0.0625,
+  },
+  "11": {
+    "hand": null,
+    "mk1": 0.5,
+    "mk2": 0.25,
+    "plasma": 0.125,
+  },
+  "12": {
+    "hand": null,
+    "mk1": null,
+    "mk2": 1,
+    "plasma": 0.5,
+  },
+  "13": {
+    "hand": null,
+    "mk1": null,
+    "mk2": 1,
+    "plasma": 0.5,
+  },
+  "2": {
+    "hand": 1.2,
+    "mk1": 0.6,
+    "mk2": 0.3,
+    "plasma": 0.15,
+  },
+  "3": {
+    "hand": null,
+    "mk1": 0.75,
+    "mk2": 0.375,
+    "plasma": 0.1875,
+  },
+  "4": {
+    "hand": null,
+    "mk1": null,
+    "mk2": 0.875,
+    "plasma": 0.4375,
+  },
+  "5": {
+    "hand": 0.8,
+    "mk1": 0.4,
+    "mk2": 0.2,
+    "plasma": 0.1,
+  },
+  "6": {
+    "hand": null,
+    "mk1": 0.5,
+    "mk2": 0.25,
+    "plasma": 0.125,
+  },
+  "7": {
+    "hand": null,
+    "mk1": 1.25,
+    "mk2": 0.625,
+    "plasma": 0.3125,
+  },
+  "8": {
+    "hand": null,
+    "mk1": 1,
+    "mk2": 0.5,
+    "plasma": 0.25,
+  },
+  "9": {
+    "hand": null,
+    "mk1": 1,
+    "mk2": 0.5,
+    "plasma": 0.25,
+  },
+}
+`;
