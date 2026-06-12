@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`trajectory determinism (seed 0x7e, 120 scripted steps) > final position matches the pinned snapshot to 6 decimals 1`] = `
+{
+  "x": "41.500000",
+  "y": "31.000000",
+  "z": "40.500000",
+}
+`;
