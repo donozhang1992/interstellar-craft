@@ -8,8 +8,9 @@
  *    `renderOnce()` → screenshot. No wall-clock anywhere.
  *  - title overlay dismissed via the DOM (`display:none`) — pointer lock is not
  *    available headless, and the overlay's only game effect is requesting lock;
- *  - HUD is fully deterministic in M0 (static info line, no fps counter), so
- *    shots include it un-masked;
+ *  - the HUD is fully deterministic (static info line, inventory-driven
+ *    hotbar; every transient element — toasts, item name, mining progress —
+ *    is timed in SIM STEPS, not wall-clock), so shots include it un-masked;
  *  - baselines are 1280×720 PNGs in tests/visual/__baselines__/ (config
  *    `snapshotPathTemplate`), gate `maxDiffPixelRatio: 0.005` (config-wide).
  *
@@ -46,7 +47,7 @@ const POSES = {
    *  removes the surface block at (48,30,48) — reach is 4.6 < 7. */
   mine: { x: 48.5, y: 33, z: 48.5, yaw: 0, pitch: -1.55 },
   /** h. One block higher so the placed block (48,31,48) doesn't intersect the
-   *  player; slot index 2 = Basalt (block id 3). */
+   *  player; M1: hotbar slot 3 = starter-kit Hull ×4 (block id 9). */
   place: { x: 48.5, y: 34, z: 48.5, yaw: 0, pitch: -1.55 },
   /** i. Fly-height shot above the plain south of crater 1, facing -z (yaw 0)
    *  and pitched steeply down so the whole bowl reads as a depression. */
@@ -109,28 +110,32 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
     await shoot(page, POSES.hud);
     await expect(page).toHaveScreenshot('hud-slot1.png');
     await page.evaluate(() => {
-      window.__game!.setInput!({ slot: 3 }); // hotbar slot 4
+      window.__game!.setInput!({ slot: 3 }); // hotbar slot 4 = starter-kit Hull
       window.__game!.renderOnce!();
     });
     await expect(page).toHaveScreenshot('hud-slot4.png');
   });
 
-  test('g. after-mine — surface block removed and remeshed', async ({ page }) => {
+  test('g. after-mine — surface block hold-mined away and remeshed', async ({ page }) => {
     await page.evaluate((p) => {
       const g = window.__game!;
       g.teleport!(p.x, p.y, p.z, p.yaw, p.pitch);
-      g.setInput!({ mine: true });
-      g.stepFrames!(2); // edit consumed on step 1, remesh on render
+      // Fly-hover so 36 held steps don't drift the camera; empty slot 5 = hand.
+      g.setInput!({ toggleFly: true, slot: 4 });
+      g.stepFrames!(1);
+      g.setInput!({ mine: true }); // GAME_DESIGN §4: regolith 0.6 s ÷ hand ×1 = 36 steps
+      g.stepFrames!(36); // completes on step 36; remesh on render
+      g.setInput!({ mine: false });
       g.renderOnce!();
     }, POSES.mine);
     await expect(page).toHaveScreenshot('after-mine.png');
   });
 
-  test('h. after-place — basalt placed on the targeted face', async ({ page }) => {
+  test('h. after-place — starter-kit hull placed on the targeted face', async ({ page }) => {
     await page.evaluate((p) => {
       const g = window.__game!;
       g.teleport!(p.x, p.y, p.z, p.yaw, p.pitch);
-      g.setInput!({ slot: 2, place: true }); // slot 3 = Basalt (id 3)
+      g.setInput!({ slot: 3, place: true }); // slot 4 = Hull ×4 (block id 9), consumes 1
       g.stepFrames!(2);
       g.renderOnce!();
     }, POSES.place);
