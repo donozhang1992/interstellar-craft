@@ -162,7 +162,7 @@ describe('VoxelWorld', () => {
     w.setBlock(3, 3, 3, BlockId.Lamp); // different chunk — must NOT be visited
     const visited: number[][] = [];
     w.forEachBlockInChunk(1, 0, 0, (x, y, z, id) => visited.push([x, y, z, id]));
-    visited.sort((a, b) => a[0] - b[0]);
+    visited.sort((a, b) => a[0]! - b[0]!);
     expect(visited).toEqual([
       [17, 1, 2, BlockId.Rock],
       [31, 15, 15, BlockId.Ice],

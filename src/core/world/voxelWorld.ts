@@ -68,14 +68,14 @@ export class VoxelWorld {
   /** Block id at (x, y, z); 0 (air) outside world bounds — prototype behavior. */
   getBlock(x: number, y: number, z: number): number {
     if (!this.inBounds(x, y, z)) return 0;
-    const chunk = this.chunks[this.chunkIndex(toChunk(x), toChunk(y), toChunk(z))];
-    return chunk[voxelIndex(toLocal(x), toLocal(y), toLocal(z))];
+    const chunk = this.chunks[this.chunkIndex(toChunk(x), toChunk(y), toChunk(z))]!;
+    return chunk[voxelIndex(toLocal(x), toLocal(y), toLocal(z))]!;
   }
 
   /** Write a block id. Out-of-range coordinates are a silent no-op (prototype parity). */
   setBlock(x: number, y: number, z: number, id: number): void {
     if (!this.inBounds(x, y, z)) return;
-    const chunk = this.chunks[this.chunkIndex(toChunk(x), toChunk(y), toChunk(z))];
+    const chunk = this.chunks[this.chunkIndex(toChunk(x), toChunk(y), toChunk(z))]!;
     chunk[voxelIndex(toLocal(x), toLocal(y), toLocal(z))] = id;
   }
 
@@ -85,9 +85,16 @@ export class VoxelWorld {
 
   /** Raw chunk voxel data, or null if the chunk coordinate is out of range. */
   getChunkData(cx: number, cy: number, cz: number): Uint8Array | null {
-    if (cx < 0 || cy < 0 || cz < 0 || cx >= this.chunksX || cy >= this.chunksY || cz >= this.chunksZ)
+    if (
+      cx < 0 ||
+      cy < 0 ||
+      cz < 0 ||
+      cx >= this.chunksX ||
+      cy >= this.chunksY ||
+      cz >= this.chunksZ
+    )
       return null;
-    return this.chunks[this.chunkIndex(cx, cy, cz)];
+    return this.chunks[this.chunkIndex(cx, cy, cz)]!;
   }
 
   /**
@@ -108,7 +115,7 @@ export class VoxelWorld {
     for (let ly = 0; ly < CHUNK_SIZE; ly++) {
       for (let lz = 0; lz < CHUNK_SIZE; lz++) {
         for (let lx = 0; lx < CHUNK_SIZE; lx++) {
-          const id = chunk[voxelIndex(lx, ly, lz)];
+          const id = chunk[voxelIndex(lx, ly, lz)]!;
           if (id !== 0) cb(baseX + lx, baseY + ly, baseZ + lz, id);
         }
       }

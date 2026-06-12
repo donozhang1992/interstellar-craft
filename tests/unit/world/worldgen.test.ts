@@ -15,7 +15,7 @@ function worldHash(w: VoxelWorld): string {
       for (let cx = 0; cx < w.chunksX; cx++) {
         const data = w.getChunkData(cx, cy, cz)!;
         for (let i = 0; i < data.length; i++) {
-          h ^= data[i];
+          h ^= data[i]!;
           h = Math.imul(h, 0x01000193);
         }
       }
@@ -113,7 +113,7 @@ describe('generateWorld', () => {
         for (let cx = 0; cx < world.chunksX; cx++) {
           const data = world.getChunkData(cx, cy, cz)!;
           for (let i = 0; i < data.length; i++) {
-            if (data[i] > 6) throw new Error(`invalid block id ${data[i]}`);
+            if (data[i]! > 6) throw new Error(`invalid block id ${data[i]}`);
           }
         }
   });

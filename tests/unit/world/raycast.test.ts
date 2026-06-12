@@ -51,7 +51,9 @@ describe('raycast (voxel DDA)', () => {
     // block surface is 3 units below the origin's voxel boundary path; 2 is too short
     expect(raycast(w, { x: 5.5, y: 6.5, z: 5.5 }, { x: 0, y: -1, z: 0 }, 2)).toBeNull();
     // and an empty world never hits anything
-    expect(raycast(new VoxelWorld(DIMS), { x: 5.5, y: 6.5, z: 5.5 }, { x: 0, y: -1, z: 0 }, 100)).toBeNull();
+    expect(
+      raycast(new VoxelWorld(DIMS), { x: 5.5, y: 6.5, z: 5.5 }, { x: 0, y: -1, z: 0 }, 100),
+    ).toBeNull();
   });
 
   it('never returns the starting voxel: a ray starting inside a solid block exits it', () => {
