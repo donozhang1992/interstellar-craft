@@ -29,6 +29,8 @@ export interface GameHooks {
   teleport?(x: number, y: number, z: number, yaw?: number, pitch?: number): void;
   /** Single deterministic render of current state (no rAF, no sim step). */
   renderOnce?(): void;
+  /** Draw calls of the most recent render (`renderer.info.render.calls`) — M0.5 perf probe. */
+  drawCalls?(): number;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -46,6 +48,7 @@ export function installHooks(game: Game): GameHooks {
       if (pitch !== undefined) p.pitch = pitch;
     },
     renderOnce: () => game.renderFrame(),
+    drawCalls: () => game.scene.renderer.info.render.calls,
   };
   window.__game = hooks;
   return hooks;
