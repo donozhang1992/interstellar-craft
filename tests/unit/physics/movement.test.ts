@@ -94,6 +94,33 @@ describe('walking', () => {
     expect(Math.hypot(p.vel.x, p.vel.z)).toBeCloseTo(PHYS.WALK_SPEED, 12);
   });
 
+  it('back/left/right map to the prototype directions (yaw-relative strafe)', () => {
+    // yaw = 0: forward = (−sin, −cos) = (0, −1); right = (cos, −sin) = (1, 0)
+    const w = new VoxelWorld(DIMS);
+    const mk = (): PlayerState => {
+      const p = createPlayer({ x: 8.5, y: 10, z: 8.5 }, 0, 0);
+      p.flying = true; // isolate horizontal velocity from gravity
+      return p;
+    };
+    const cases: [MoveInput, number, number][] = [
+      [{ forward: true }, 0, -1],
+      [{ back: true }, 0, 1],
+      [{ left: true }, -1, 0],
+      [{ right: true }, 1, 0],
+    ];
+    for (const [input, dx, dz] of cases) {
+      const p = mk();
+      step(p, w, input);
+      expect(p.vel.x).toBeCloseTo(dx * PHYS.FLY_SPEED, 12);
+      expect(p.vel.z).toBeCloseTo(dz * PHYS.FLY_SPEED, 12);
+    }
+    // opposing keys cancel: forward+back yields zero horizontal velocity
+    const p = mk();
+    step(p, w, { forward: true, back: true });
+    expect(p.vel.x).toBe(0);
+    expect(p.vel.z).toBe(0);
+  });
+
   it('stops instantly when keys are released (no friction/inertia — prototype)', () => {
     const w = flatWorld();
     const p = groundedPlayer(w);
