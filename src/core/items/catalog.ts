@@ -34,7 +34,6 @@ export interface ItemDef {
   readonly blockId?: SolidBlockId;
 }
 
-/* eslint-disable @typescript-eslint/naming-convention -- ids are data keys */
 export const ITEMS = {
   // ── Placeable blocks (one per §4 row) ──────────────────────────────────
   'block:1': {
@@ -183,7 +182,6 @@ export const ITEMS = {
     stackMax: STACK_MAX,
   },
 } as const satisfies Record<string, ItemDef>;
-/* eslint-enable @typescript-eslint/naming-convention */
 
 /** Every valid item id (compile-time union of the table keys). */
 export type ItemId = keyof typeof ITEMS;
