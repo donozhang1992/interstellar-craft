@@ -51,6 +51,11 @@ const POSES = {
   /** i. Fly-height shot above the plain south of crater 1, facing -z (yaw 0)
    *  and pitched steeply down so the whole bowl reads as a depression. */
   aerial: { x: 30.5, y: 58, z: 82.5, yaw: 0, pitch: -0.9 },
+  /** l. Anti-BH view: yaw −0.6524 + π ≈ 2.4892 faces directly away from
+   *  BH_DIR, pitch 0.25 lifts the eye so starfield + nebulae fill the frame
+   *  over a thin terrain horizon — pins sky rendering with no Gargantua
+   *  billboard in shot. */
+  deepSpace: { x: 48.5, y: 32, z: 48.5, yaw: 2.4892, pitch: 0.25 },
 } satisfies Record<string, Pose>;
 
 /** Boot the game with the rAF clock disabled and the title overlay hidden. */
@@ -135,6 +140,11 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
   test('i. aerial view down into the craters', async ({ page }) => {
     await shoot(page, POSES.aerial);
     await expect(page).toHaveScreenshot('aerial-craters.png');
+  });
+
+  test('l. deep-space horizon — sky/nebulae away from Gargantua', async ({ page }) => {
+    await shoot(page, POSES.deepSpace);
+    await expect(page).toHaveScreenshot('deep-space-horizon.png');
   });
 });
 
