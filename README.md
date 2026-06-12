@@ -1,6 +1,9 @@
 # INTERSTELLAR CRAFT
 
-![Gargantua over KIPP-7e](docs/media/cover.png)
+![Cinematic trailer — Gargantua over KIPP-7e](docs/media/trailer.webp)
+
+*30-second in-engine cinematic trailer, rendered frame-by-frame in the browser
+([how it was made](prototype/)).*
 
 A story-driven voxel mining & building game in the browser. You are an engineer
 stranded on a planet orbiting the supermassive black hole **Gargantua**. Mine,
