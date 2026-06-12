@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>星际矿境 — 电影宣传片渲染器</title>
+<style>
+  html, body { margin: 0; padding: 0; overflow: hidden; background: #000; height: 100%; }
+  #app { position: fixed; inset: 0; }
+  canvas { display: block; width: 1280px; height: 720px; }
+
+  /* 宽银幕黑边 2.39:1 */
+  .bar { position: fixed; left: 0; width: 1280px; height: 92px; background: #000; z-index: 5; }
+  .bar.top { top: 0; } .bar.bot { top: 628px; }
+
+  .cap {
+    position: fixed; left: 0; width: 1280px; text-align: center; z-index: 6;
+    color: #fff; opacity: 0; pointer-events: none;
+    font-family: "Microsoft YaHei UI Light", "Microsoft YaHei", "Segoe UI", sans-serif;
+  }
+  #titleMain {
+    top: 362px; font-size: 60px; font-weight: 200; letter-spacing: 24px; text-indent: 24px;
+    background: linear-gradient(180deg, #ffffff 20%, #ffc98a 90%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 26px rgba(255, 190, 110, .45));
+  }
+  #titleSub {
+    top: 458px; font-size: 16px; font-weight: 300; letter-spacing: 11px; text-indent: 11px;
+    color: #c8d2f5;
+  }
+  #credit {
+    top: 506px; font-size: 13px; font-weight: 300; letter-spacing: 6px; text-indent: 6px;
+    color: #b3bcdf;
+    text-shadow: 0 1px 4px #000;
+  }
+  .lower {
+    top: 545px; font-size: 21px; font-weight: 300; letter-spacing: 9px; text-indent: 9px;
+    color: #e9edff; text-shadow: 0 0 18px rgba(140, 170, 255, .55), 0 2px 6px #000;
+  }
+  #endTitle {
+    top: 316px; font-size: 46px; font-weight: 200; letter-spacing: 18px; text-indent: 18px;
+    color: #fff; z-index: 9;
+    background: linear-gradient(180deg, #ffffff 20%, #ffc98a 90%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    filter: drop-shadow(0 0 22px rgba(255, 190, 110, .5));
+  }
+  #endSub { top: 392px; font-size: 15px; letter-spacing: 9px; text-indent: 9px; color: #9aa6d8; z-index: 9; }
+
+  #fade  { position: fixed; left: 0; top: 0; width: 1280px; height: 720px; background: #000; z-index: 8; pointer-events: none; }
+  #flash { position: fixed; left: 0; top: 0; width: 1280px; height: 720px; background: #fff7e8; z-index: 4; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div class="bar top"></div><div class="bar bot"></div>
+
+<div id="titleMain" class="cap">INTERSTELLAR CRAFT</div>
+<div id="titleSub"  class="cap">A &nbsp; V O X E L &nbsp; S P A C E &nbsp; O D Y S S E Y</div>
+<div id="credit" class="cap">Created by Dapeng</div>
+<div id="cap2" class="cap lower">BENEATH THE BLACK HOLE — A LONE JOURNEY</div>
+<div id="cap3" class="cap lower">BLOCK BY BLOCK, A SIGNAL TO THE STARS</div>
+<div id="cap4" class="cap lower">. . . AND SOMEONE ANSWERS</div>
+<div id="endTitle" class="cap">INTERSTELLAR CRAFT</div>
+<div id="endSub" class="cap">A&nbsp;VOXEL&nbsp;ODYSSEY&nbsp;·&nbsp;2026</div>
+
+<div id="flash"></div>
+<div id="fade"></div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+
+/* ============================================================
+   常量 / 确定性随机
+============================================================ */
+const FPS = 24, DUR = 30, W = 1280, H = 720, SS = 1.5;
+
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function hash2(x, y) {
+  let h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+  return h - Math.floor(h);
+}
+function valueNoise(x, y) {
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+  const a = hash2(xi, yi), b = hash2(xi + 1, yi);
+  const c = hash2(xi, yi + 1), d = hash2(xi + 1, yi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function fbm(x, y) {
+  let s = 0, amp = 1, freq = 1, norm = 0;
+  for (let i = 0; i < 4; i++) { s += valueNoise(x * freq, y * freq) * amp; norm += amp; amp *= .5; freq *= 2.1; }
+  return s / norm;
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, u) => a + (b - a) * u;
+const smooth = (a, b, v) => { const u = clamp((v - a) / (b - a), 0, 1); return u * u * (3 - 2 * u); };
+const fadeWin = (t, i0, i1, o0, o1) => smooth(i0, i1, t) * (1 - smooth(o0, o1, t));
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const lerpV = (A, B, u) => A.clone().lerp(B, u);
+
+/* ============================================================
+   渲染器 / 场景
+============================================================ */
+const renderer = new THREE.WebGLRenderer({ antialias: false, preserveDrawingBuffer: true });
+renderer.setPixelRatio(SS);
+renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+document.getElementById('app').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x04050c, 90, 260);
+const camera = new THREE.PerspectiveCamera(44, W / H, 0.08, 4000);
+
+/* ============================================================
+   方块纹理 / 材质
+============================================================ */
+const BLOCKS = {
+  1: { base: [150, 140, 162], noise: 22 },
+  2: { base: [106, 102, 126], noise: 18 },
+  3: { base: [58, 56, 72],    noise: 14 },
+  4: { base: [80, 230, 235],  noise: 55, emissive: 0x2bb6be, glow: true },
+  5: { base: [170, 207, 238], noise: 16, emissive: 0x0c1a28 },
+  6: { base: [255, 200, 120], noise: 30, emissive: 0xcc7a28, glow: true },
+};
+function makeTexture(def) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 16;
+  const ctx = c.getContext('2d');
+  const [r, g, b] = def.base;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const n = (hash2(x * 3.1 + r, y * 2.7 + g) - .5) * 2 * def.noise;
+    ctx.fillStyle = `rgb(${clamp(r + n | 0, 0, 255)},${clamp(g + n | 0, 0, 255)},${clamp(b + n | 0, 0, 255)})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  if (def.glow) {
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect((hash2(i * 7.3, r) * 16) | 0, (hash2(i * 3.7, b) * 16) | 0, 1, 3);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.magFilter = tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+const materials = {};
+for (const id in BLOCKS) {
+  const def = BLOCKS[id];
+  materials[id] = new THREE.MeshLambertMaterial({
+    map: makeTexture(def), vertexColors: true,
+    emissive: new THREE.Color(def.emissive || 0),
+    emissiveIntensity: def.glow ? 1.35 : 1.0,
+  });
+}
+
+/* ============================================================
+   地形（含剧情用平整走廊 + 营地）
+============================================================ */
+const SIZE = 96;
+const world = new Map();
+const key = (x, y, z) => x + ',' + y + ',' + z;
+const getBlock = (x, y, z) => world.get(key(x, y, z)) || 0;
+
+const heightAt = [];
+const craters = [{ x: 30, z: 62, r: 13, d: 6 }, { x: 70, z: 26, r: 9, d: 4 }];
+for (let x = 0; x < SIZE; x++) {
+  heightAt[x] = [];
+  for (let z = 0; z < SIZE; z++) {
+    let h = 18 + fbm(x * .045, z * .045) * 16 + fbm(x * .13, z * .13) * 4;
+    for (const cr of craters) {
+      const d = Math.hypot(x - cr.x, z - cr.z);
+      if (d < cr.r) {
+        const u = d / cr.r;
+        h -= cr.d * (Math.cos(u * Math.PI) * .5 + .5);
+        h += cr.d * .45 * Math.exp(-Math.pow((u - .95) * 5, 2));
+      }
+    }
+    heightAt[x][z] = Math.max(4, Math.round(h));
+  }
+}
+// 剧情走廊：P0 → P1（宇航员行走路线）拉平，P1 旁是营地/信标塔
+const P0 = { x: 44, z: 56 }, P1 = { x: 56, z: 44 };
+const hA = heightAt[P0.x][P0.z], hB = heightAt[P1.x][P1.z];
+for (let x = 0; x < SIZE; x++) for (let z = 0; z < SIZE; z++) {
+  const dx = P1.x - P0.x, dz = P1.z - P0.z;
+  const len2 = dx * dx + dz * dz;
+  const s = clamp(((x - P0.x) * dx + (z - P0.z) * dz) / len2, 0, 1);
+  const px = P0.x + dx * s, pz = P0.z + dz * s;
+  const d = Math.hypot(x - px, z - pz);
+  if (d < 3.2) {
+    const target = Math.round(lerp(hA, hB, s));
+    heightAt[x][z] = Math.round(lerp(heightAt[x][z], target, smooth(3.2, 1.4, 3.2 - (3.2 - d))));
+    heightAt[x][z] = Math.round(lerp(heightAt[x][z], target, smooth(0, 1, (3.2 - d) / 2)));
+  }
+  if (Math.hypot(x - 57, z - 43) < 3.5) heightAt[x][z] = hB; // 信标塔基座平台
+}
+for (let x = 0; x < SIZE; x++) for (let z = 0; z < SIZE; z++) {
+  const h = heightAt[x][z];
+  const icy = h <= 15;
+  for (let y = 0; y <= h; y++) {
+    let id;
+    if (y === h) id = icy ? 5 : 1;
+    else if (y >= h - 3) id = 2;
+    else id = 3;
+    if (id === 2 && hash2(x * 1.7 + y * 3.3, z * 2.9) > .965) id = 4;
+    world.set(key(x, y, z), id);
+  }
+  if (!icy && hash2(x * 5.1, z * 7.7) > .9955 && Math.hypot(x - 57, z - 43) > 5) {
+    world.set(key(x, h + 1, z), 4);
+  }
+}
+function groundH(x, z) { // 双线性平滑地面高度（镜头用）
+  const xi = clamp(Math.floor(x), 0, SIZE - 2), zi = clamp(Math.floor(z), 0, SIZE - 2);
+  const fx = x - xi, fz = z - zi;
+  const a = heightAt[xi][zi], b = heightAt[xi + 1][zi], c = heightAt[xi][zi + 1], d = heightAt[xi + 1][zi + 1];
+  return lerp(lerp(a, b, fx), lerp(c, d, fx), fz) + 1;
+}
+function standH(x, z) { // 站立高度：取脚印覆盖方块的最高面，避免穿模
+  const r = .3;
+  let m = 0;
+  for (const [dx, dz] of [[-r, -r], [r, -r], [-r, r], [r, r]]) {
+    m = Math.max(m, heightAt[clamp(Math.floor(x + dx), 0, SIZE - 1)][clamp(Math.floor(z + dz), 0, SIZE - 1)]);
+  }
+  return m + 1;
+}
+
+/* ============================================================
+   地形网格（含 Minecraft 风格顶点 AO）
+============================================================ */
+const FACES = [
+  { n: [0, 1, 0],  v: [[0,1,1],[1,1,1],[1,1,0],[0,1,0]], s: 1.0 },
+  { n: [0, -1, 0], v: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]], s: .45 },
+  { n: [1, 0, 0],  v: [[1,0,1],[1,0,0],[1,1,0],[1,1,1]], s: .72 },
+  { n: [-1, 0, 0], v: [[0,0,0],[0,0,1],[0,1,1],[0,1,0]], s: .72 },
+  { n: [0, 0, 1],  v: [[0,0,1],[1,0,1],[1,1,1],[0,1,1]], s: .82 },
+  { n: [0, 0, -1], v: [[1,0,0],[0,0,0],[0,1,0],[1,1,0]], s: .6 },
+];
+const FACE_UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
+const AO_VALS = [1.0, 0.82, 0.66, 0.5];
+
+function vertexAO(get, x, y, z, n, vx, vy, vz) {
+  // 顶点相对面中心的两个切向偏移 + 角块
+  const tx = n[0] !== 0 ? [0, vy * 2 - 1, 0] : [vx * 2 - 1, 0, 0];
+  const tz = n[2] !== 0 ? [0, vy * 2 - 1, 0] : n[1] !== 0 ? [0, 0, vz * 2 - 1] : [0, 0, vz * 2 - 1];
+  const ty = (n[1] !== 0) ? [vx * 2 - 1, 0, 0] : tx;
+  let s1o, s2o;
+  if (n[1] !== 0)      { s1o = [vx * 2 - 1, n[1], 0]; s2o = [0, n[1], vz * 2 - 1]; }
+  else if (n[0] !== 0) { s1o = [n[0], vy * 2 - 1, 0]; s2o = [n[0], 0, vz * 2 - 1]; }
+  else                 { s1o = [0, vy * 2 - 1, n[2]]; s2o = [vx * 2 - 1, 0, n[2]]; }
+  const co = [s1o[0] + s2o[0] - (n[0]), s1o[1] + s2o[1] - (n[1]), s1o[2] + s2o[2] - (n[2])];
+  const s1 = get(x + s1o[0], y + s1o[1], z + s1o[2]) ? 1 : 0;
+  const s2 = get(x + s2o[0], y + s2o[1], z + s2o[2]) ? 1 : 0;
+  const c  = get(x + n[0] + co[0], y + n[1] + co[1], z + n[2] + co[2]) ? 1 : 0;
+  return AO_VALS[(s1 && s2) ? 3 : s1 + s2 + c];
+}
+
+function buildVoxelMesh(map, matById) {
+  const get = (x, y, z) => map.get(key(x, y, z)) || 0;
+  const buffers = {};
+  for (const k of map.keys()) {
+    const [x, y, z] = k.split(',').map(Number);
+    const id = map.get(k);
+    for (const f of FACES) {
+      if (get(x + f.n[0], y + f.n[1], z + f.n[2])) continue;
+      let b = buffers[id];
+      if (!b) b = buffers[id] = { pos: [], nrm: [], uv: [], col: [], idx: [] };
+      const base = b.pos.length / 3;
+      for (let i = 0; i < 4; i++) {
+        const [vx, vy, vz] = f.v[i];
+        const ao = vertexAO(get, x, y, z, f.n, vx, vy, vz);
+        b.pos.push(x + vx, y + vy, z + vz);
+        b.nrm.push(...f.n);
+        b.uv.push(...FACE_UV[i]);
+        const sh = f.s * ao;
+        b.col.push(sh, sh, sh);
+      }
+      b.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+    }
+  }
+  for (const id in buffers) {
+    const b = buffers[id];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
+    g.setAttribute('normal',   new THREE.Float32BufferAttribute(b.nrm, 3));
+    g.setAttribute('uv',       new THREE.Float32BufferAttribute(b.uv, 2));
+    g.setAttribute('color',    new THREE.Float32BufferAttribute(b.col, 3));
+    g.setIndex(b.idx);
+    scene.add(new THREE.Mesh(g, matById[id]));
+  }
+}
+buildVoxelMesh(world, materials);
+
+/* ============================================================
+   天空：星空 / 星云 / 远月 / Gargantua
+============================================================ */
+{
+  const rng = mulberry32(20260611);
+  const N = 3200, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), siz = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    let v;
+    do { v = V3(rng() * 2 - 1, rng() * 2 - 1, rng() * 2 - 1); } while (v.lengthSq() > 1 || v.lengthSq() < .01);
+    v.normalize().multiplyScalar(1600);
+    if (v.y < 0 && rng() < .8) v.y = -v.y;
+    pos.set([v.x, v.y, v.z], i * 3);
+    const t = rng();
+    const c = t < .68 ? [1, 1, 1] : t < .85 ? [.72, .83, 1] : [1, .86, .7];
+    const lum = .35 + rng() * .65;
+    col.set([c[0] * lum, c[1] * lum, c[2] * lum], i * 3);
+    siz[i] = (1.2 + rng() * 2.6) * SS;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('aSize', new THREE.BufferAttribute(siz, 1));
+  const m = new THREE.ShaderMaterial({
+    vertexShader: `attribute float aSize; varying vec3 vC;
+      void main(){ vC=color; vec4 mv=modelViewMatrix*vec4(position,1.);
+        gl_PointSize=aSize; gl_Position=projectionMatrix*mv; }`,
+    fragmentShader: `varying vec3 vC;
+      void main(){ float d=length(gl_PointCoord-.5); if(d>.5) discard;
+        gl_FragColor=vec4(vC*1.2, smoothstep(.5,.08,d)); }`,
+    vertexColors: true, transparent: true, depthWrite: false,
+  });
+  const stars = new THREE.Points(g, m);
+  // 强制先画：星空整体对象中心在原点附近，默认排序会把它叠绘到黑洞上面
+  stars.renderOrder = -2;
+  scene.add(stars);
+}
+{ // 星云
+  const tex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const ctx = c.getContext('2d');
+    const grad = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(255,255,255,.8)');
+    grad.addColorStop(.4, 'rgba(255,255,255,.25)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  })();
+  [[0x2a3a7a, [-.7, .25, -.4], 1000], [0x5a2a6a, [.3, .5, -.8], 1250], [0x1a4a5a, [.9, .15, .5], 1100]]
+  .forEach(([color, d, sc]) => {
+    const m = new THREE.SpriteMaterial({ map: tex, color, blending: THREE.AdditiveBlending,
+      transparent: true, opacity: .15, depthWrite: false, fog: false });
+    const s = new THREE.Sprite(m);
+    s.position.set(...d).normalize().multiplyScalar(1500);
+    s.scale.setScalar(sc);
+    s.renderOrder = -2;
+    scene.add(s);
+  });
+}
+{ // 远处的冰月（被吸积盘暖光照出月牙）
+  const moon = new THREE.Mesh(
+    new THREE.SphereGeometry(26, 48, 32),
+    new THREE.MeshStandardMaterial({ color: 0x8a93a8, roughness: .95, fog: false })
+  );
+  moon.position.set(-.52, .2, -.83).normalize().multiplyScalar(1250);
+  scene.add(moon);
+}
+
+// ---- Gargantua：史瓦西测地线光线追踪（billboard 局部坐标系内积分光子轨迹）----
+const BH_DIR = V3(.55, .42, -.72).normalize();
+const BH_POS = BH_DIR.clone().multiplyScalar(1150);
+const BH_QUAD = 2300;                 // billboard 边长（世界单位）
+const BH_SPAN_RS = 52.5;              // 整个 quad 覆盖多少个史瓦西半径（接缝远离强弯曲区）
+const BH_WPRS = BH_QUAD / BH_SPAN_RS; // 世界单位 / rs
+// 吸积盘局部坐标系：法线略向镜头倾斜（电影机位：从盘面稍上方看）
+const bhView = BH_DIR.clone();
+// 盘法线与视线垂直后加 ~3.5° 微倾——参考剧照机位
+const bhN = V3(0, 1, 0).addScaledVector(bhView, -bhView.y + .06).normalize();
+// 参考图标志性的对角线：盘绕视轴滚转 ~12°（画面上左低右高的斜切）
+bhN.applyAxisAngle(bhView, -.21);
+const bhBx = V3().crossVectors(bhN, bhView).normalize();              // 盘内横轴
+const bhBz = V3().crossVectors(bhBx, bhN).normalize();
+
+const blackHoleMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0 },
+    uCamPos: { value: new THREE.Vector3() },
+    uBHPos: { value: BH_POS },
+    uWprs: { value: BH_WPRS },
+    uBx: { value: bhBx }, uBn: { value: bhN }, uBz: { value: bhBz },
+    uQuadPos: { value: BH_POS },
+    uQuadRight: { value: new THREE.Vector3(1, 0, 0) },
+    uQuadUp: { value: new THREE.Vector3(0, 1, 0) },
+    uQuadSize: { value: 0 },
+  },
+  vertexShader: `
+    uniform vec3 uQuadPos, uQuadRight, uQuadUp;
+    uniform float uQuadSize;
+    varying vec2 vUv; varying vec3 vWorld;
+    void main(){
+      vUv = uv;
+      // 离屏全屏 quad：uv 直接映射到 billboard 平面上的世界坐标
+      vWorld = uQuadPos + (uv.x - .5) * uQuadSize * uQuadRight + (uv.y - .5) * uQuadSize * uQuadUp;
+      gl_Position = vec4(position.xy, 0.0, 1.0);
+    }`,
+  fragmentShader: `
+    uniform float uTime, uWprs;
+    uniform vec3 uCamPos, uBHPos, uBx, uBn, uBz;
+    varying vec2 vUv; varying vec3 vWorld;
+
+    const float RS = 1.0;
+    const float DISK_IN = 2.3;
+    const float DISK_OUT = 15.0;
+    const float DISK_H = 0.26;  // 体积雾盘半厚度（高斯衰减）
+    const int MAX_STEPS = 230;
+    const float FAR_B = 17.0;   // 瞄准参数超过此值 → 解析弱场偏折，免积分
+
+    float hash12(vec2 p){
+      vec3 p3 = fract(vec3(p.xyx) * .1031);
+      p3 += dot(p3, p3.yzx + 33.33);
+      return fract((p3.x + p3.y) * p3.z);
+    }
+    float hash13(vec3 p3){
+      p3 = fract(p3 * .1031);
+      p3 += dot(p3, p3.zyx + 31.32);
+      return fract((p3.x + p3.y) * p3.z);
+    }
+    float noise(vec2 p){
+      vec2 i = floor(p), f = fract(p);
+      f = f*f*(3.-2.*f);
+      return mix(mix(hash12(i), hash12(i+vec2(1,0)), f.x),
+                 mix(hash12(i+vec2(0,1)), hash12(i+vec2(1,1)), f.x), f.y);
+    }
+    float fbm(vec2 p){
+      float v = 0., a = .5;
+      for(int i = 0; i < 5; i++){ v += a*noise(p); p = p*2.13 + vec2(7.3,1.7); a *= .55; }
+      return v;
+    }
+    // 黑体配色：暗红 → 橙白 → 蓝白
+    vec3 blackbody(float t){
+      t = clamp(t, 0., 1.);
+      vec3 c = vec3(smoothstep(0., .35, t), smoothstep(.12, .75, t)*.85, smoothstep(.35, 1., t));
+      c.r += .25*smoothstep(0., .2, t)*(1.-t);
+      return c;
+    }
+    // 透镜畸变后的程序化星空（按世界方向采样，与场景星空风格一致）
+    vec3 starfield(vec3 dir){
+      vec3 col = vec3(0.);
+      for(int layer = 0; layer < 2; layer++){
+        float scale = layer == 0 ? 220. : 90.;
+        vec3 p = dir*scale;
+        vec3 cell = floor(p);
+        float h = hash13(cell);
+        if(h > (layer == 0 ? .976 : .988)){
+          vec3 center = cell + .5 + .4*(vec3(hash13(cell+7.1), hash13(cell+3.7), hash13(cell+1.3)) - .5);
+          float d = length(p - center);
+          float b = smoothstep(.5, 0., d)*(.4 + .6*hash13(cell+11.));
+          vec3 sc = mix(vec3(1., .85, .7), vec3(.7, .85, 1.), hash13(cell+5.));
+          col += b*b*sc*(layer == 0 ? 1.5 : 2.2);
+        }
+      }
+      return col;
+    }
+    // 吸积盘辐射（开普勒流动 + 多普勒束射 + 引力红移）
+    vec3 diskShade(vec3 pos, vec3 rayDir){
+      float r = length(pos.xz);
+      if(r < DISK_IN || r > DISK_OUT) return vec3(0.);
+      float phi = atan(pos.z, pos.x);
+      float omega = 1./pow(r, 1.5);
+      float swirl = phi + 14.*omega - uTime*omega*1.2;
+      float texR = (r - DISK_IN)/(DISK_OUT - DISK_IN);
+      // 纤维状流丝：沿角向拉长、径向高频（电影里丝缕状的气流）
+      float turb = fbm(vec2(swirl*2.2, r*5.5));
+      turb = mix(turb, fbm(vec2(swirl*5.5, r*12.)), .42);
+      turb = pow(turb, 1.25);
+      float temp = pow(DISK_IN/r, .75);
+      vec3 vel = vec3(-sin(phi), 0., cos(phi))*sqrt(.5*RS/r)*1.4;
+      float dopp = 1./(1. - dot(vel, -rayDir));
+      float beam = pow(clamp(dopp, .86, 1.28), 3.);  // 电影刻意削弱了多普勒不对称
+      float gshift = sqrt(max(1. - RS/r, 0.));
+      float emit = (.45 + 1.0*turb)*smoothstep(0., .08, texR)*smoothstep(1.05, .55, texR);
+      vec3 col = blackbody(clamp(temp*1.05 + .25*(dopp - 1.), 0., 1.));
+      // 电影色调：大幅去饱和 → 奶白主体，仅外缘残留一点尘埃暖色
+      float dlum = dot(col, vec3(.299, .587, .114));
+      col = mix(vec3(dlum), col, .38);
+      col = mix(col, vec3(1.0, .975, .94), smoothstep(.35, .9, temp)*.75);
+      return col*emit*beam*gshift*1.3;
+    }
+    // 零测地线积分：a = -1.5·rs·h²·pos/r⁵；吸积盘 = 体积雾层沿程积分
+    vec4 trace(vec3 ro, vec3 rd){
+      vec3 pos = ro, dir = rd, col = vec3(0.);
+      vec3 hvec = cross(pos, dir);
+      float h2 = dot(hvec, hvec);
+      float escapeR = length(ro) + 20.0;
+      bool captured = false;
+      for(int i = 0; i < MAX_STEPS; i++){
+        float r = length(pos);
+        if(r < RS*1.02){ captured = true; break; }
+        if(r > escapeR && dot(pos, dir) > 0.) break;
+        float dt = clamp(r*.11, .04, 3.0);
+        // 盘径向范围内：单步垂直位移不得超过半个雾层厚度，杜绝一步跨层漏采样
+        float rxz = length(pos.xz);
+        if(rxz < DISK_OUT + 3.5 && rxz > DISK_IN - 1.5){
+          dt = min(dt, max(.1, .5*DISK_H/(abs(dir.y) + 1e-3)));
+        }
+        vec3 acc = -1.5*RS*h2*pos/pow(r, 5.);
+        dir = normalize(dir + acc*dt);
+        pos += dir*dt;
+        // 体积雾盘发光（厚度让刀刃有质感、接缝被辉光填满）
+        float r2 = length(pos.xz);
+        if(abs(pos.y) < DISK_H*3. && r2 > DISK_IN && r2 < DISK_OUT){
+          // 柔和雾层 + 中平面炽亮热核（参考剧照里刀刃中的高亮核线）
+          float dens = exp(-pow(pos.y/DISK_H, 2.)) + 1.7*exp(-pow(pos.y/(DISK_H*.28), 2.));
+          vec3 d = diskShade(vec3(pos.x, 0., pos.z), dir);
+          col += d*dens*dt*.42*(1. - clamp(length(col), 0., 1.)*.55);
+        }
+      }
+      if(!captured){
+        // 透镜畸变后的背景星空（转回世界方向采样）；辉光处星光被对比度淹没
+        vec3 wd = normalize(dir.x*uBx + dir.y*uBn + dir.z*uBz);
+        col += starfield(wd)*(1. - clamp(length(col)*1.7, 0., 1.));
+      }
+      return vec4(col, captured ? 1. : 0.);
+    }
+    void main(){
+      vec3 roW = uCamPos - uBHPos;
+      vec3 rdW = normalize(vWorld - uCamPos);
+      // 旋转进吸积盘局部系，长度换算成 rs
+      vec3 ro = vec3(dot(roW, uBx), dot(roW, uBn), dot(roW, uBz))/uWprs;
+      vec3 rd = normalize(vec3(dot(rdW, uBx), dot(rdW, uBn), dot(rdW, uBz)));
+      // 瞄准参数：远离黑洞的光线用解析弱场偏折（α ≈ 2rs/b），免去逐步积分
+      vec3 hv = cross(ro, rd);
+      float b = length(hv);
+      vec3 col;
+      if(b > FAR_B){
+        float alphaDef = 2.0*RS/b;
+        vec3 axis = normalize(hv);
+        vec3 bent = normalize(rd*cos(alphaDef) + cross(axis, rd)*sin(alphaDef));
+        vec3 wd = normalize(bent.x*uBx + bent.y*uBn + bent.z*uBz);
+        col = starfield(wd);
+      } else {
+        vec4 res = trace(ro, rd);
+        col = res.rgb;
+      }
+      // 光子球辉光
+      float impact = length(cross(normalize(-ro), rd))*length(ro);
+      col += exp(-pow(max(impact - 2.6, 0.), 2.)*.4)*smoothstep(1.3, 2.5, impact)*.08*vec3(1., .93, .85);
+      // 软压光（HDR 交给 Bloom + ACES）
+      col = col/(1. + .5*col);
+      // 预乘 alpha：渐隐只衰减对背景的遮挡，发光本身全亮度延伸到贴图边缘
+      float q = length(vUv - .5)*2.;
+      float alpha = smoothstep(1., .88, q);
+      gl_FragColor = vec4(col*1.15, alpha);
+    }`,
+});
+// 离屏渲染：固定 768² 分辨率做测地线积分，billboard 只贴结果纹理（防 GPU 超时）
+const BH_RT = new THREE.WebGLRenderTarget(1280, 1280, {
+  type: THREE.HalfFloatType,
+  minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter,
+});
+const bhScene = new THREE.Scene();
+const bhOrtho = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+{
+  const tri = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), blackHoleMat);
+  bhScene.add(tri);
+}
+const bhBillboardMat = new THREE.MeshBasicMaterial({
+  map: BH_RT.texture, transparent: true, depthWrite: false, fog: false,
+});
+// 预乘 alpha 混合：rgb 直加、alpha 只控制背景遮挡（雾尾不被边缘渐隐削暗）
+bhBillboardMat.blending = THREE.CustomBlending;
+bhBillboardMat.blendSrc = THREE.OneFactor;
+bhBillboardMat.blendDst = THREE.OneMinusSrcAlphaFactor;
+const blackHole = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), bhBillboardMat);
+blackHole.position.copy(BH_POS);
+blackHole.scale.setScalar(BH_QUAD);
+scene.add(blackHole);
+blackHoleMat.uniforms.uQuadSize.value = BH_QUAD;
+
+function renderBlackHoleRT() {
+  blackHole.lookAt(camera.position);
+  blackHole.updateMatrixWorld();
+  const q = blackHole.quaternion;
+  blackHoleMat.uniforms.uQuadRight.value.set(1, 0, 0).applyQuaternion(q);
+  blackHoleMat.uniforms.uQuadUp.value.set(0, 1, 0).applyQuaternion(q);
+  blackHoleMat.uniforms.uCamPos.value.copy(camera.position);
+  renderer.setRenderTarget(BH_RT);
+  renderer.render(bhScene, bhOrtho);
+  renderer.setRenderTarget(null);
+}
+
+/* ============================================================
+   光照
+============================================================ */
+scene.add(new THREE.AmbientLight(0x46507a, .5));
+const sun = new THREE.DirectionalLight(0xffd9b0, 1.35);
+sun.position.copy(BH_DIR).multiplyScalar(100);
+scene.add(sun);
+const rim = new THREE.DirectionalLight(0x4060a8, .4);
+rim.position.copy(BH_DIR).multiplyScalar(-100).setY(60);
+scene.add(rim);
+scene.add(new THREE.HemisphereLight(0x32406e, 0x0a0a12, .45));
+const beaconLight = new THREE.PointLight(0xffd9a0, 0, 60, 1.6);
+scene.add(beaconLight);
+// 摄影机补光（柔和冷光，让近景主体不至于全黑）
+const fillLight = new THREE.PointLight(0xbfd0ff, 7, 16, 1.8);
+scene.add(fillLight);
+
+/* ============================================================
+   宇航员（方块小人）
+============================================================ */
+const suitMat   = new THREE.MeshStandardMaterial({ color: 0xe8e9ee, roughness: .75, metalness: .05, emissive: 0x232a38 });
+const accentMat = new THREE.MeshStandardMaterial({ color: 0xff7a2a, roughness: .6, emissive: 0x521c06 });
+const darkMat   = new THREE.MeshStandardMaterial({ color: 0x33363f, roughness: .8 });
+const visorMat  = new THREE.MeshStandardMaterial({
+  color: 0x0a1018, roughness: .15, metalness: .8,
+  emissive: 0x3fa8c8, emissiveIntensity: 1.5,
+});
+function box(w, h, d, mat, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  return m;
+}
+const astro = new THREE.Group();
+const torso = new THREE.Group();
+torso.add(box(.52, .62, .32, suitMat, 0, 1.06, 0));
+torso.add(box(.54, .1, .34, accentMat, 0, .82, 0));            // 腰带
+torso.add(box(.4, .5, .18, darkMat, 0, 1.12, -.26));           // 背包
+torso.add(box(.03, .34, .03, darkMat, .14, 1.52, -.3));        // 天线
+const head = new THREE.Group();
+head.add(box(.42, .42, .42, suitMat, 0, 0, 0));
+head.add(box(.3, .18, .03, visorMat, 0, .02, .215));           // 面罩
+head.position.set(0, 1.58, 0);
+const armL = new THREE.Group(), armR = new THREE.Group();
+for (const [arm, sx] of [[armL, -1], [armR, 1]]) {
+  arm.add(box(.16, .58, .16, suitMat, 0, -.26, 0));
+  arm.add(box(.18, .1, .18, accentMat, 0, -.06, 0));
+  arm.position.set(sx * .34, 1.34, 0);
+}
+const legL = new THREE.Group(), legR = new THREE.Group();
+for (const [leg, sx] of [[legL, -1], [legR, 1]]) {
+  leg.add(box(.2, .74, .2, suitMat, 0, -.37, 0));
+  leg.add(box(.22, .1, .24, darkMat, 0, -.7, .02));
+  leg.position.set(sx * .14, .75, 0);
+}
+astro.add(torso, head, armL, armR, legL, legR);
+astro.scale.setScalar(.92);
+scene.add(astro);
+
+// 头灯（小点光，照亮宇航员前方）
+const headLamp = new THREE.PointLight(0xcfe8ff, 5, 7, 2);
+scene.add(headLamp);
+
+/* ============================================================
+   信标塔 + 光柱
+============================================================ */
+const TOWER = { x: 57.5, z: 43.5, base: hB + 1, ids: [2, 6, 6, 4, 6, 6, 4, 4] };
+const towerBlocks = TOWER.ids.map((id, k) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), materials[id]);
+  // BoxGeometry 无顶点色属性时 vertexColors 材质会出错 → 补白色
+  const cnt = m.geometry.attributes.position.count;
+  m.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Array(cnt * 3).fill(1), 3));
+  m.position.set(TOWER.x, TOWER.base + k + .5, TOWER.z);
+  m.scale.setScalar(0);
+  scene.add(m);
+  return m;
+});
+const BLOCK_T0 = 12.6, BLOCK_DT = .5;
+
+// 营地：两盏聚变灯 + 暖色泛光（宇航员到达后亮起）
+const campLamps = [[53.5, 44.5], [57.5, 47.5]].map(([x, z]) => {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), materials[6]);
+  const cnt = m.geometry.attributes.position.count;
+  m.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Array(cnt * 3).fill(1), 3));
+  m.position.set(x, groundH(x, z) + .5 | 0, z);
+  m.position.y = heightAt[x | 0][z | 0] + 1.5;
+  m.scale.setScalar(0);
+  scene.add(m);
+  return m;
+});
+const campLight = new THREE.PointLight(0xffb066, 0, 14, 1.7);
+campLight.position.set(55.5, hB + 3.5, 45.5);
+scene.add(campLight);
+
+const beamMat = new THREE.ShaderMaterial({
+  uniforms: { uT: { value: 0 }, uIg: { value: 0 } },
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+    uniform float uT, uIg;
+    varying vec2 vUv;
+    void main(){
+      float h = vUv.y;
+      float a = pow(1.0-h, 1.8) * uIg;
+      a *= 0.75 + 0.25*sin(uT*5.0 - h*20.0);
+      float edge = sin(vUv.x*3.14159);
+      a *= pow(edge, 1.5);
+      gl_FragColor = vec4(vec3(1.0,0.88,0.66)*a*1.05, a);
+    }`,
+});
+const BEAM_H = 220;
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(.28, .4, BEAM_H, 24, 1, true), beamMat);
+beam.position.set(TOWER.x, TOWER.base + 8 + BEAM_H / 2 - .5, TOWER.z);
+scene.add(beam);
+const beamOuter = new THREE.Mesh(new THREE.CylinderGeometry(.75, 1.05, BEAM_H, 24, 1, true), beamMat.clone());
+beamOuter.material.uniforms = { uT: beamMat.uniforms.uT, uIg: { value: 0 } };
+beamOuter.position.copy(beam.position);
+scene.add(beamOuter);
+
+// 塔顶光斑
+const flareTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(.3, 'rgba(255,230,180,.5)');
+  g.addColorStop(1, 'rgba(255,200,120,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
+const flare = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: flareTex, blending: THREE.AdditiveBlending, transparent: true, opacity: 0, depthWrite: false, fog: false,
+}));
+flare.position.set(TOWER.x, TOWER.base + 8.2, TOWER.z);
+flare.scale.setScalar(3.5);
+scene.add(flare);
+
+/* ============================================================
+   尘埃 / 流星
+============================================================ */
+const dustMat = new THREE.ShaderMaterial({
+  uniforms: { uT: { value: 0 } },
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  vertexShader: `
+    uniform float uT;
+    attribute float aPhase, aSize;
+    void main(){
+      vec3 p = position;
+      p.y += sin(uT*0.4 + aPhase)*0.7;
+      p.x += sin(uT*0.23 + aPhase*1.7)*0.5;
+      p.z += cos(uT*0.31 + aPhase*2.3)*0.5;
+      vec4 mv = modelViewMatrix * vec4(p, 1.0);
+      gl_PointSize = aSize * (140.0 / max(1.0, -mv.z));
+      gl_Position = projectionMatrix * mv;
+    }`,
+  fragmentShader: `
+    void main(){
+      float d = length(gl_PointCoord-.5); if(d>.5) discard;
+      gl_FragColor = vec4(vec3(.75,.82,1.0), smoothstep(.5,.05,d)*0.1);
+    }`,
+});
+let dustPoints;
+{
+  const rng = mulberry32(777);
+  const N = 600, pos = new Float32Array(N * 3), ph = new Float32Array(N), sz = new Float32Array(N);
+  for (let i = 0; i < N; i++) {
+    const x = 20 + rng() * 60, z = 20 + rng() * 60;
+    pos.set([x, groundH(x, z) + .3 + rng() * 4, z], i * 3);
+    ph[i] = rng() * Math.PI * 2;
+    sz[i] = (.8 + rng() * 1.4) * SS;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('aPhase', new THREE.BufferAttribute(ph, 1));
+  g.setAttribute('aSize', new THREE.BufferAttribute(sz, 1));
+  dustPoints = new THREE.Points(g, dustMat);
+  scene.add(dustPoints);
+}
+// 流星（黑洞特写镜头中划过）
+const streakTex = (() => {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 8;
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 128, 0);
+  g.addColorStop(0, 'rgba(255,255,255,0)');
+  g.addColorStop(.7, 'rgba(220,235,255,.9)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 8);
+  return new THREE.CanvasTexture(c);
+})();
+const meteor = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: streakTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending,
+  depthWrite: false, fog: false, rotation: -.22,
+}));
+meteor.scale.set(120, 4, 1);
+scene.add(meteor);
+
+/* ============================================================
+   伏笔：另一颗星球 —— 外星人收到了信号
+============================================================ */
+const ALIEN_C = { x: 1520, z: -780 };  // 外星营地世界坐标（远离主世界）
+const A_MATS = {
+  11: { base: [92, 152, 122], noise: 20 },                                // 苔原
+  12: { base: [58, 82, 80],   noise: 16 },                                // 暗岩
+  13: { base: [232, 96, 210], noise: 50, emissive: 0x93256e, glow: true } // 异星晶簇
+};
+const alienMaterials = {};
+for (const id in A_MATS) {
+  const def = A_MATS[id];
+  alienMaterials[id] = new THREE.MeshLambertMaterial({
+    map: makeTexture(def), vertexColors: true,
+    emissive: new THREE.Color(def.emissive || 0),
+    emissiveIntensity: def.glow ? 1.2 : 1.0,
+  });
+}
+const aWorld = new Map();
+const AN = 42, aHeight = [];
+for (let x = 0; x < AN; x++) {
+  aHeight[x] = [];
+  for (let z = 0; z < AN; z++) {
+    let h = 8 + fbm((x + 61) * .06, (z + 137) * .06) * 9;
+    const dc = Math.hypot(x - 21, z - 21);
+    if (dc < 8) h = 10;                              // 接收站平台
+    else if (dc < 11) h = lerp(10, h, (dc - 8) / 3); // 平台边缘过渡
+    aHeight[x][z] = Math.round(h);
+  }
+}
+for (let x = 0; x < AN; x++) for (let z = 0; z < AN; z++) {
+  const h = aHeight[x][z];
+  const wx = ALIEN_C.x + x, wz = ALIEN_C.z + z;
+  for (let y = Math.max(0, h - 3); y <= h; y++) {
+    aWorld.set(key(wx, y, wz), y === h ? 11 : 12);
+  }
+  if (hash2(x * 9.1, z * 6.3) > .985 && Math.hypot(x - 21, z - 21) > 8.5) {
+    aWorld.set(key(wx, h + 1, wz), 13);
+  }
+}
+// 接收站：暗岩基座 + 异星晶体
+const RECV = { x: ALIEN_C.x + 23.5, z: ALIEN_C.z + 21.5, base: 11 };
+aWorld.set(key(ALIEN_C.x + 23, 11, ALIEN_C.z + 21), 12);
+buildVoxelMesh(aWorld, alienMaterials);
+
+const recvMat = alienMaterials[13].clone();
+const recvCrystal = new THREE.Mesh(new THREE.BoxGeometry(1, 1.6, 1), recvMat);
+{
+  const cnt = recvCrystal.geometry.attributes.position.count;
+  recvCrystal.geometry.setAttribute('color', new THREE.Float32BufferAttribute(new Array(cnt * 3).fill(1), 3));
+}
+recvCrystal.position.set(RECV.x, RECV.base + 1 + .8, RECV.z);
+scene.add(recvCrystal);
+const recvLight = new THREE.PointLight(0xffb066, 0, 18, 1.7);
+recvLight.position.set(RECV.x, RECV.base + 2.6, RECV.z);
+scene.add(recvLight);
+const recvFlare = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: flareTex, blending: THREE.AdditiveBlending, transparent: true, opacity: 0, depthWrite: false, fog: false,
+}));
+recvFlare.position.set(RECV.x, RECV.base + 2.2, RECV.z);
+recvFlare.scale.setScalar(3);
+scene.add(recvFlare);
+
+// 外星人：细长身形、长头、发光的琥珀色眼睛、天线
+const alienBodyMat = new THREE.MeshStandardMaterial({ color: 0x5e7468, roughness: .8, emissive: 0x14201a });
+const alienEyeMat = new THREE.MeshStandardMaterial({ color: 0x140e04, emissive: 0xffb340, emissiveIntensity: 2 });
+const alien = new THREE.Group();
+const aHead = new THREE.Group();
+{
+  alien.add(box(.42, .92, .3, alienBodyMat, 0, 1.32, 0));               // 躯干
+  aHead.add(box(.34, .54, .38, alienBodyMat, 0, .27, 0));               // 长头
+  aHead.add(box(.085, .12, .03, alienEyeMat, -.09, .3, .2));            // 左眼
+  aHead.add(box(.085, .12, .03, alienEyeMat, .09, .3, .2));             // 右眼
+  aHead.add(box(.025, .3, .025, alienBodyMat, -.1, .62, -.05));         // 天线
+  aHead.add(box(.025, .36, .025, alienBodyMat, .1, .65, -.05));
+  aHead.add(box(.05, .05, .05, alienEyeMat, -.1, .78, -.05));           // 天线发光尖
+  aHead.add(box(.05, .05, .05, alienEyeMat, .1, .84, -.05));
+  aHead.position.set(0, 1.78, 0);
+  alien.add(aHead);
+  for (const sx of [-1, 1]) {
+    alien.add(box(.1, .78, .1, alienBodyMat, sx * .28, 1.18, 0));       // 细长手臂
+    alien.add(box(.12, .9, .12, alienBodyMat, sx * .12, .45, 0));       // 细长腿
+  }
+}
+const ALIEN_POS = { x: ALIEN_C.x + 20.4, z: ALIEN_C.z + 21.3 };
+alien.position.set(ALIEN_POS.x, aHeight[20][21] + 1, ALIEN_POS.z);
+alien.rotation.y = Math.atan2(3.6, -3.3); // 面向接收站与镜头之间，发光眼睛入画
+scene.add(alien);
+
+// 外星天空：带环的气态巨行星 + 绿色星云
+const gasGiantTex = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.translate(128, 128);
+  // 行星本体（横向条纹）
+  ctx.save();
+  ctx.beginPath(); ctx.arc(0, 0, 78, 0, Math.PI * 2); ctx.clip();
+  for (let y = -78; y < 78; y += 6) {
+    const n = hash2(y * .37, 7.7);
+    ctx.fillStyle = `rgba(${150 + n * 60 | 0},${110 + n * 40 | 0},${160 + n * 50 | 0},1)`;
+    ctx.fillRect(-80, y, 160, 6);
+  }
+  // 晨昏线阴影
+  const sh = ctx.createLinearGradient(-78, 0, 78, 0);
+  sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,5,.85)');
+  ctx.fillStyle = sh; ctx.fillRect(-80, -80, 160, 160);
+  ctx.restore();
+  // 行星环
+  ctx.strokeStyle = 'rgba(210,190,230,.55)';
+  ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.ellipse(0, 0, 118, 26, -.3, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(160,140,190,.35)';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.ellipse(0, 0, 104, 22, -.3, 0, Math.PI * 2); ctx.stroke();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+})();
+const gasGiant = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: gasGiantTex, transparent: true, depthWrite: false, fog: false, opacity: .95,
+}));
+gasGiant.position.set(ALIEN_C.x + 21 - 430, 255, ALIEN_C.z + 21 + 480);
+gasGiant.scale.setScalar(220);
+scene.add(gasGiant);
+
+function updateAlienWorld(t) {
+  gasGiant.visible = t >= 25.9;   // 只在外星分镜出现，避免主世界穿帮
+  // 接收晶体被信号唤醒：泛起与信标同源的暖橙色脉动
+  const ig = smooth(26.5, 27.1, t);
+  const pulse = .5 + .5 * Math.sin(t * 4.2);
+  recvLight.intensity = ig * (16 + 10 * pulse);
+  recvLight.color.setHex(0xffb066);
+  recvMat.emissiveIntensity = .9 + ig * (.8 + .6 * pulse);
+  recvMat.emissive.lerpColors(new THREE.Color(0x93256e), new THREE.Color(0xcc7a28), ig * (0.55 + 0.45 * pulse));
+  recvFlare.material.opacity = ig * (.25 + .2 * pulse);
+  // 外星人抬头望向天空（信号来的方向）
+  aHead.rotation.x = -smooth(27.3, 28.4, t) * .55;
+  // 伏笔：结尾眼睛闪烁两下，像是回应
+  const blink = Math.exp(-Math.pow((t - 28.25) / .09, 2)) + Math.exp(-Math.pow((t - 28.6) / .09, 2));
+  alienEyeMat.emissiveIntensity = 2 + blink * 4;
+}
+
+/* ============================================================
+   后期：Bloom + 调色/颗粒/暗角/色差
+============================================================ */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(W, H), .7, .5, .82);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+const gradePass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uT: { value: 0 } },
+  vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }`,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uT;
+    varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+    void main(){
+      vec2 uv = vUv;
+      vec2 d = uv - 0.5;
+      float r2 = dot(d, d);
+      // 轻微色差
+      float ca = 0.0035 * r2 * 4.0;
+      vec3 col;
+      col.r = texture2D(tDiffuse, uv + d*ca).r;
+      col.g = texture2D(tDiffuse, uv).g;
+      col.b = texture2D(tDiffuse, uv - d*ca).b;
+      // 橙青调色
+      col = pow(col, vec3(1.02, 1.0, 0.96));
+      col.b += 0.018 * (1.0 - smoothstep(0.0, 0.5, col.r)); // 阴影偏蓝
+      // 对比 S 曲线 + 饱和
+      col = clamp(col, 0.0, 1.0);
+      col = col*col*(3.0-2.0*col)*0.35 + col*0.65;
+      float lum = dot(col, vec3(.299,.587,.114));
+      col = mix(vec3(lum), col, 1.1);
+      // 暗角
+      col *= 1.0 - smoothstep(0.18, 0.62, r2)*0.42;
+      // 胶片颗粒
+      col += (hash(uv*vec2(1280.,720.) + fract(uT*7.13)*100.0) - 0.5)*0.045;
+      gl_FragColor = vec4(col, 1.0);
+    }`,
+});
+composer.addPass(gradePass);
+
+/* ============================================================
+   分镜 / 剧情时间线
+============================================================ */
+// 宇航员行走：t=2 从 P0 出发, t=12 到达 P1
+const WALK_T0 = 2, WALK_T1 = 12;
+const SITE = V3(55.6, 0, 45.4);  // 到达后站立点（营地平台内）
+// 行走路径高度曲线：预采样 + 抬谷平滑，台阶变成连续坡（防跳帧，且不低于方块面不穿模）
+const WALK_N = 240, walkY = [];
+{
+  for (let i = 0; i <= WALK_N; i++) {
+    const u = i / WALK_N;
+    walkY.push(standH(lerp(P0.x + .5, SITE.x, u), lerp(P0.z + .5, SITE.z, u)));
+  }
+  for (let pass = 0; pass < 14; pass++) {
+    for (let i = 1; i < WALK_N; i++) {
+      walkY[i] = Math.max(walkY[i], (walkY[i - 1] + walkY[i] + walkY[i + 1]) / 3);
+    }
+  }
+}
+function sampleWalkY(u) {
+  const f = clamp(u, 0, 1) * WALK_N;
+  const i = Math.min(Math.floor(f), WALK_N - 1);
+  return lerp(walkY[i], walkY[i + 1], f - i);
+}
+function astroState(t) {
+  let x, z, walking = false, prog = 0, y;
+  if (t < WALK_T1) {
+    const u = clamp((t - WALK_T0) / (WALK_T1 - WALK_T0), 0, 1);
+    x = lerp(P0.x + .5, SITE.x, u);
+    z = lerp(P0.z + .5, SITE.z, u);
+    walking = t >= WALK_T0 && u < 1;
+    prog = u * 17;  // 行走相位（按路程）
+    y = sampleWalkY(u);
+  } else {
+    x = SITE.x; z = SITE.z;
+    y = standH(x, z);
+  }
+  let yaw = Math.atan2(SITE.x - P0.x, SITE.z - P0.z); // 沿路朝向
+  if (t >= WALK_T1) yaw = Math.atan2(TOWER.x - x, TOWER.z - z); // 面向塔
+  if (t >= 18.5) yaw = Math.atan2(BH_DIR.x, BH_DIR.z);          // 仰望黑洞
+  return { x, y, z, yaw, walking, prog };
+}
+function updateAstronaut(t) {
+  const s = astroState(t);
+  astro.position.set(s.x, s.y, s.z);
+  astro.rotation.y = s.yaw;
+  if (s.walking) {
+    const ph = s.prog * 2 * Math.PI / 1.45; // 步幅 1.45m
+    const sw = Math.sin(ph) * .55;
+    legL.rotation.x = sw; legR.rotation.x = -sw;
+    armL.rotation.x = -sw * .8; armR.rotation.x = sw * .8;
+    astro.position.y = s.y + Math.abs(Math.cos(ph)) * .06;
+    torso.rotation.x = .06;
+    head.rotation.x = 0;
+  } else {
+    legL.rotation.x = legR.rotation.x = 0;
+    armL.rotation.x = armR.rotation.x = 0;
+    torso.rotation.x = 0;
+    // 建造动作：每个方块出现时右臂前抛
+    let armX = 0;
+    for (let k = 0; k < towerBlocks.length; k++) {
+      const dt = t - (BLOCK_T0 + k * BLOCK_DT);
+      if (dt > -.25 && dt < .4) armX = Math.max(armX, Math.sin(clamp((dt + .25) / .65, 0, 1) * Math.PI) * 1.3);
+    }
+    armR.rotation.x = -armX;
+    // 点火后仰望
+    if (t >= 18.5) head.rotation.x = -.5;
+    else head.rotation.x = 0;
+  }
+  headLamp.position.set(s.x + Math.sin(s.yaw) * 1.2, s.y + 1.5, s.z + Math.cos(s.yaw) * 1.2);
+}
+function updateBeacon(t) {
+  // 营地灯：t=11.6/12.0 先后亮起
+  campLamps.forEach((m, i) => {
+    const u = clamp((t - (11.6 + i * .4)) / .35, 0, 1);
+    m.scale.setScalar(Math.min(1, u * 2.2) * (1 + .3 * Math.sin(u * Math.PI) * (1 - u)));
+  });
+  campLight.intensity = smooth(11.6, 12.4, t) * 9;
+  for (let k = 0; k < towerBlocks.length; k++) {
+    const u = (t - (BLOCK_T0 + k * BLOCK_DT)) / .4;
+    let s = 0;
+    if (u >= 1) s = 1;
+    else if (u > 0) s = Math.min(1, u * 2.2) * (1 + .3 * Math.sin(Math.min(u, 1) * Math.PI) * (1 - u));
+    towerBlocks[k].scale.setScalar(s);
+  }
+  const ig = smooth(18.7, 19.3, t);
+  beamMat.uniforms.uT.value = t;
+  beamMat.uniforms.uIg.value = ig;
+  beamOuter.material.uniforms.uIg.value = ig * .35;
+  flare.material.opacity = ig * (.75 + .25 * Math.sin(t * 4.2));
+  beaconLight.intensity = ig * (55 + 14 * Math.sin(t * 4.2));
+  beaconLight.position.set(TOWER.x, TOWER.base + 8.5, TOWER.z);
+  bloom.strength = .7 + .8 * Math.exp(-Math.pow((t - 19.0) / .55, 2));
+}
+function updateMeteor(t) {
+  const u = (t - 23.7) / 1.2;
+  if (u < 0 || u > 1) { meteor.material.opacity = 0; return; }
+  meteor.material.opacity = Math.sin(u * Math.PI) * .9;
+  const right = V3().crossVectors(BH_DIR, V3(0, 1, 0)).normalize();
+  const up = V3().crossVectors(right, BH_DIR).normalize();
+  meteor.position.copy(BH_POS)
+    .addScaledVector(right, -420 + 760 * u)
+    .addScaledVector(up, 260 - 120 * u);
+}
+
+/* ---- 摄影机分镜 ---- */
+function cameraAt(t) {
+  let pos, look, fov = 44;
+  if (t < 6) {                       // S1 开场大全景：黑洞悬于地平线
+    const u = smooth(0, 1, t / 6);
+    pos = lerpV(V3(18, 40, 96), V3(26, 32, 86), u);
+    look = lerpV(V3(120, 88, -50), V3(110, 81, -48), u);
+    fov = 46;
+  } else if (t < 12) {               // S2 跟拍行走（宇航员偏右，黑洞辉光在前方）
+    const s = astroState(t);
+    const back = 4.4, side = -1.5;
+    const dx = Math.sin(s.yaw), dz = Math.cos(s.yaw);
+    const px = s.x - dx * back + dz * side;
+    const pz = s.z - dz * back - dx * side;
+    pos = V3(px, groundH(px, pz) + 1.5, pz);
+    // 手持感
+    pos.x += Math.sin(t * 1.1) * .06; pos.y += Math.sin(t * 1.7) * .05; pos.z += Math.cos(t * .9) * .06;
+    look = V3(s.x + dx * 4, s.y + 1.9, s.z + dz * 4);
+    fov = 42;
+  } else if (t < 18.5) {             // S3 环绕建塔（带上宇航员前景）
+    const u = (t - 12) / 6.5;
+    const ang = lerp(2.95, 2.05, u);
+    const rad = lerp(13.5, 10.5, u);
+    const cx = TOWER.x, cz = TOWER.z;
+    pos = V3(cx + Math.cos(ang) * rad, TOWER.base + 1.7 + u * 1.7, cz + Math.sin(ang) * rad);
+    const built = clamp((t - BLOCK_T0) / BLOCK_DT, 0, 8);
+    look = V3(cx, TOWER.base + 1 + Math.min(built * .3, 2.1), cz);
+    fov = 42;
+  } else if (t < 23) {               // S4 点火 + 升摇向黑洞
+    const u = (t - 18.5) / 4.5;
+    const e = smooth(0, 1, u);
+    pos = lerpV(V3(TOWER.x - 9, TOWER.base + 1.0, TOWER.z + 11),
+                V3(TOWER.x - 12, TOWER.base + 5.5, TOWER.z + 14), e);
+    const lookTower = V3(TOWER.x, TOWER.base + 3.6, TOWER.z);
+    look = lerpV(lookTower, BH_POS, smooth(.18, .8, u));
+    fov = lerp(46, 36, e);
+  } else if (t < 26) {               // S5 黑洞特写：电影构图，黑洞偏右、吸积盘横扫画面
+    const u = (t - 23) / 3;
+    const px = 40 + .6 * u, pz = 56 + .45 * u;  // 缓慢横移
+    pos = V3(px, groundH(40, 56) + 2.0, pz);
+    const dirH = V3(BH_DIR.x, 0, BH_DIR.z).normalize();
+    look = pos.clone().addScaledVector(dirH, 100).addScaledVector(V3(.79, 0, .61), -lerp(14, 11, u)); // 向左偏移视线 → 黑洞落在画面右侧
+    look.y = pos.y + lerp(21, 19.5, u);
+    fov = 42;
+  } else if (t < 28.8) {             // S6 伏笔：另一颗星球，外星人收到信号
+    const u = smooth(0, 1, (t - 26) / 2.8);
+    pos = V3(ALIEN_C.x + 27 - u * 1.7, 12.2 - u * .2, ALIEN_C.z + 14.8 + u * 1.4);
+    look = V3(ALIEN_C.x + 20.6, 11 + lerp(1.7, 2.9, u), ALIEN_C.z + 21.2);
+    fov = 40;
+  } else {                           // S7 黑场
+    pos = V3(ALIEN_C.x + 25.3, 12.0, ALIEN_C.z + 16.2);
+    look = V3(ALIEN_C.x + 20.6, 13.9, ALIEN_C.z + 21.2);
+    fov = 40;
+  }
+  return { pos, look, fov };
+}
+
+/* ---- 字幕 / 转场 ---- */
+const $ = id => document.getElementById(id);
+function updateOverlays(t) {
+  $('titleMain').style.opacity = fadeWin(t, 1.6, 2.8, 4.8, 5.7);
+  $('titleSub').style.opacity  = fadeWin(t, 2.2, 3.4, 4.8, 5.7);
+  $('credit').style.opacity    = fadeWin(t, 2.9, 4.0, 4.8, 5.7);
+  $('cap2').style.opacity = fadeWin(t, 8.2, 9.2, 10.8, 11.7);
+  $('cap3').style.opacity = fadeWin(t, 14.2, 15.2, 16.8, 17.7);
+  $('cap4').style.opacity = fadeWin(t, 27.0, 27.7, 28.5, 29.1);
+  $('endTitle').style.opacity = smooth(29.0, 29.6, t);
+  $('endSub').style.opacity = smooth(29.3, 29.9, t);
+  // 渐入渐出 + 镜头切换瞬黑
+  let fade = 1 - smooth(0, 1.6, t);
+  fade = Math.max(fade, smooth(28.5, 29.1, t));        // 结尾黑场
+  for (const cut of [6, 12, 18.5, 23, 26]) {            // 硬切处 2 帧微黑，模拟剪辑
+    if (Math.abs(t - cut) < .05) fade = Math.max(fade, .85);
+  }
+  $('fade').style.opacity = fade;
+  $('flash').style.opacity = .85 * Math.exp(-Math.pow((t - 18.95) / .28, 2));
+}
+
+/* ============================================================
+   主更新 + 帧渲染 API
+============================================================ */
+function updateScene(t) {
+  // 尘埃只在地面叙事镜头出现；仰拍天空时是穿帮的前景白点
+  dustPoints.visible = t < 18.5;
+  blackHoleMat.uniforms.uTime.value = t;
+  dustMat.uniforms.uT.value = t;
+  gradePass.uniforms.uT.value = t;
+  updateAstronaut(t);
+  updateBeacon(t);
+  updateAlienWorld(t);
+  updateMeteor(t);
+  const c = cameraAt(t);
+  camera.position.copy(c.pos);
+  camera.fov = c.fov;
+  camera.updateProjectionMatrix();
+  camera.lookAt(c.look);
+  // 外星世界分镜（t≥26）：他们的天空没有 Gargantua，隐藏黑洞 billboard
+  blackHole.visible = t < 26;
+  if (blackHole.visible) renderBlackHoleRT();
+  fillLight.position.copy(c.pos).y += 1;
+  updateOverlays(t);
+}
+
+window.__trailer = { groundH, heightAt, TOWER, BH_DIR, cameraAt, camera, THREE, towerBlocks, astro };
+
+let manual = false;
+window.renderFrame = function (i) {
+  manual = true;
+  updateScene(i / FPS);
+  composer.render();
+  return 'frame ' + i;
+};
+
+// 自由预览模式（浏览器直接打开时循环播放）
+let rafT0 = null;
+function rafLoop(now) {
+  if (manual) return;
+  if (rafT0 === null) rafT0 = now;
+  const t = ((now - rafT0) / 1000) % DUR;
+  updateScene(t);
+  composer.render();
+  requestAnimationFrame(rafLoop);
+}
+
+// 预热：渲染一帧编译所有 shader，再标记就绪
+document.fonts.ready.then(() => {
+  updateScene(0);
+  composer.render();
+  window.READY = true;
+  requestAnimationFrame(rafLoop);
+});
+</script>
+</body>
+</html>

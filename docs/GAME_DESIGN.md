@@ -1,0 +1,135 @@
+# INTERSTELLAR CRAFT — Game Design Document
+
+> Single source of truth for gameplay design. Numbers here are the canonical values;
+> code must match this document or this document must be updated in the same PR.
+
+## 1. Vision
+
+A story-driven voxel mining/building game. You are an engineer stranded on a rocky
+planet orbiting the supermassive black hole **Gargantua**. Mine, craft, and build a
+signal beacon to answer a mysterious pulse from a distant green world. The enemy is
+the environment — oxygen, darkness, gravity — not combat.
+
+**Pillars**: ① Lonely sublime (Interstellar mood) ② Tactile voxel crafting (Minecraft
+feel) ③ A story worth finishing (40–60 min main quest).
+
+**Out of scope (MVP)**: multiplayer, mobile, infinite worlds, combat system.
+
+## 2. Story & Setting
+
+2087. Survey ship *Endurance-9* breaks apart during a gravity-assist around Gargantua.
+Engineer **Dapeng** (the player) crash-lands on **KIPP-7e**, a tidally locked rocky
+planet. The black hole hangs permanently in the sky. The escape pod's radio picks up
+a repeating, non-natural electromagnetic pulse from a green planet in a neighboring
+system. Decoding it reveals a "greeting protocol". The player builds a beacon tower
+to answer. Ending cinematic: a tall thin alien on the green world receives the reply,
+looks up, amber eyes glowing — sequel hook. (Reuses trailer's alien-world assets.)
+
+## 3. Chapter / Quest Structure
+
+Quests are a linear state machine (see TECH_SPEC §QuestEngine). Each chapter has an
+explicit completion predicate that must be unit-testable.
+
+| Ch | Title | Player goal | Completion predicate | Unlocks |
+|----|-------|-------------|---------------------|---------|
+| 1 | Crash Site | Tutorial: move, mine 10 regolith, place 5 blocks, salvage pod | `inventory.has('hull', 3)` after salvage interaction | Workbench, Drill Mk1 |
+| 2 | The Signal | Build antenna (place 3 antenna blocks on 4-high mast), decode 3 pulses (pattern puzzle: place blocks matching displayed glyph) | 3/3 puzzles solved | Scanner, deep ores spawn |
+| 3 | Deep Veins | Descend cave, collect 12 crystal under O₂ pressure | `inventory.has('crystal', 12)` | Jump pack, crystal recipes |
+| 4 | The Beacon | Build 24-block-tall beacon tower per blueprint; structure validator checks shape | `validateBeacon(world) === true` | Fusion igniter |
+| 5 | First Contact | Charge (insert 8 crystal), ignite, launch | Ignition interaction | Ending cinematic → free mode, flight, all blocks |
+
+Free mode after credits: creative-style building, flight enabled.
+
+## 4. Blocks (12 types)
+
+| ID | Name | Hardness (s with Mk1) | Min tool | Drops | Notes |
+|----|------|----------------------|----------|-------|-------|
+| 1 | regolith | 0.6 | hand | itself | surface layer |
+| 2 | basalt | 1.5 | Mk1 | itself | crust, cave walls |
+| 3 | ice | 0.8 | hand | itself | → O₂ + glass feedstock |
+| 4 | iron_ore | 2.5 | Mk1 | iron_ore | depth y<24 |
+| 5 | copper_ore | 2.0 | Mk1 | copper_ore | depth y<28 |
+| 6 | crystal | 3.5 | Mk2 | crystal | caves only, emissive |
+| 7 | glowstone | 1.0 | Mk1 | glowstone | cave light source, emissive |
+| 8 | hull | 2.0 | Mk1 | hull | salvage + crafted plate |
+| 9 | glass | 0.5 | hand | — (breaks) | smelt ice |
+| 10 | antenna | 1.0 | Mk1 | itself | quest block, craftable ch2+ |
+| 11 | beacon_core | 4.0 | Mk2 | itself | quest block, craftable ch4+ |
+| 12 | launchpad | 4.0 | Mk2 | itself | quest block, craftable ch4+ |
+
+Tool speed multipliers: hand ×1, Drill Mk1 ×2, Mk2 ×4, Plasma ×8. A block below its
+min tool cannot be mined (progress bar refuses).
+
+## 5. Items & Recipes (~20)
+
+Crafting happens at the Workbench UI (grid-less, recipe-list style — click to craft
+if ingredients present). Recipes unlock by chapter.
+
+**Tools**: Drill Mk1 (3 hull + 2 iron), Drill Mk2 (1 Mk1 + 4 iron + 2 copper),
+Plasma Drill (1 Mk2 + 6 crystal + 2 copper) · **Equipment**: Scanner (2 copper + 1
+glass + 1 crystal), Jump Pack (4 hull + 3 copper + 2 crystal), Magnet Glove (2 iron +
+3 copper), Solar Panel (3 glass + 2 copper + 1 iron) · **Consumables**: O₂ Canister
+(2 ice + 1 iron, restores 40 O₂), Flare (1 glowstone + 1 copper, placeable light,
+60 s) · **Materials**: Iron Plate (2 iron_ore), Glass (2 ice, needs Workbench
+"smelt"), Hull Plate (2 iron_plate + 1 basalt) · **Quest**: Antenna Block (2 iron_plate +
+1 copper), Beacon Core (4 iron_plate + 4 crystal), Launchpad Block (2 hull + 2 basalt),
+Fusion Igniter (2 beacon_core + 4 crystal + 2 copper).
+
+## 6. Player Attributes
+
+| Stat | Max | Drain | Restore | At zero |
+|------|-----|-------|---------|---------|
+| HP | 100 | fall: `(blocks-3)*8` dmg; O₂=0: 4/s | 1/s when O₂>50% | death |
+| O₂ | 100 | surface 0.25/s, caves (y<28) 0.6/s | O₂ Canister +40; pod/base interior: full | HP drain |
+| Energy | 100 | jump pack 8/jump-s, drill Mk2+ 1.5/s while mining | Solar Panel placed nearby: 2/s in "daylight" (accretion-disk light) | tools fall back to hand speed, no jump pack |
+
+Death: respawn at pod, drop 50% of each stack at death point (pickup ghost persists).
+Movement: walk 4.3 m/s, low gravity (jump 1.4 blocks base), no fall damage ≤ 3 blocks.
+
+## 7. Skills / Equipment Progression
+
+No skill tree — equipment IS progression: Scanner (ch2, highlights ores ≤12 blocks
+through walls, 10 s pulse / 30 s cooldown), Jump Pack (ch3, hold-jump hover ≤ 2 s),
+Magnet Glove (craftable ch3, pickup radius 3→8 blocks), Flight Core (post-ending
+free-mode flight = prototype fly mode).
+
+## 8. Entities (3, non-hostile)
+
+| Entity | Behavior | Purpose |
+|--------|----------|---------|
+| Observer Jelly | floats, drifts toward next quest location, soft glow | diegetic quest guide |
+| Crystal Beetle | wanders cave floors, flees player, drops 1 crystal shard if cornered (no kill — it "sheds") | ambient life, bonus resource |
+| Wrecked Drone | static until repaired (2 copper + 1 crystal); then follows player as mobile light | companion, darkness counterplay |
+
+## 9. World
+
+- Fixed 256×256×64 voxel world, seeded generation (seed in save file; default seed `7e`).
+- Surface: regolith/basalt hills (heightmap, amplitude ±6), ice patches, scattered hull debris near spawn.
+- Caves: 3 carved cave systems (worm-carver algorithm) reaching y=8, crystal clusters at y<20, glowstone veins on cave ceilings.
+- Landmarks: crash pod (spawn, restores O₂), antenna hill (ch2 marker), beacon plateau (ch4 build site, flat 12×12).
+- Sky: Gargantua (offscreen-RT geodesic shader from trailer), starfield, nebulae. Permanent — tidally locked, no day/night; "daylight" = accretion disk side of sky.
+
+## 10. UI / HUD
+
+Minimal diegetic-leaning HUD: hotbar (8 slots) + HP/O₂/Energy bars bottom-left,
+quest objective top-right (one line + optional progress `7/12`), interaction prompt
+center (`[E] Salvage`), subtitle band for story beats (reuses trailer typography),
+pause menu (resume / save / settings / quit). Crafting UI: full-screen overlay at
+Workbench. All text English. Font: same family as trailer titles.
+
+## 11. Audio (M5)
+
+Ambient drone bed (Interstellar-organ-adjacent, royalty-free or synthesized),
+mining tick + block place thock, O₂ low-warning heartbeat, quest-complete chime,
+ending cue reused from trailer mood. All optional until M5.
+
+## 12. Tuning Constants (canonical)
+
+```
+WALK_SPEED = 4.3        GRAVITY = -14         JUMP_VEL = 6.2
+REACH = 5 blocks        O2_SURFACE = 0.25/s   O2_CAVE = 0.6/s
+HP_O2ZERO = 4/s         FALL_SAFE = 3 blocks  FALL_DMG = (n-3)*8
+PICKUP_RADIUS = 3       HOTBAR = 8 slots      STACK_MAX = 64
+```
+
+Changing any value here requires updating the matching unit test fixture in the same commit.
