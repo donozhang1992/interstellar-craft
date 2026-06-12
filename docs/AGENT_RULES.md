@@ -75,6 +75,9 @@ Input: task brief + branch name only (not the dev agent's reasoning). Steps:
    order-of-operations abuse, save/reload mid-action.
 4. Diff review: flag boundary violations (core importing three.js), silent baseline
    edits, test weakening, scope creep.
+5. Cleanup before finishing: kill any dev server / node process you started (check
+   port 5173). Leaked servers lock the worktree against deletion and poison the
+   next task's e2e via `reuseExistingServer`.
 Verdict: `PASS` or `FINDINGS: [numbered list with repro steps]`. No style nitpicks.
 
 ## 8. Token Budget Discipline (control plane — binding)

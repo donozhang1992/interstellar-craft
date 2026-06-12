@@ -65,5 +65,7 @@ live · README updated.
 | 2026-06-12 | M0.1 scaffold merged (03c4e07): Vite+TS+Vitest+Playwright, core-boundary lint proven, `npm run ci` green (5 unit / 100% rng cov / e2e smoke msedge) |
 | 2026-06-12 | M0.2a core world merged (ef0603f, verifier PASS): voxel storage + seeded worldgen + DDA raycast, 29 unit tests, core cov 99%. Terrain contract: hash 55922fda @ seed 0x7e. Accepted deviations: mulberry32 replaces unseeded sine hash; raycast strict maxDist. Remaining M0.2b: AABB physics port |
 | 2026-06-12 | M0.2b physics merged (c06837b, verifier PASS): AABB collision + stepPlayer (walk/sprint/jump/fly), PHYS constants prototype-exact, 63 unit tests total, core cov 99%. Integrator contracts: pass dt=1/60, heightmap-derived spawn, edge-triggered toggleFly, ControlLeft-only descend |
+| 2026-06-12 | M0.3b black hole + sky merged (2b7ff85, verifier PASS): geodesic RT 1280² HalfFloat, premultiplied billboard, disk basis .06/−.21 pinned, seeded stars/nebulae renderOrder −2, demo/blackhole.html. uTime swirl exposed via setTime — renderRT is expensive (render once at boot / on demand). TECH_SPEC §7.4/7.8 corrected to trailer-actual |
+| 2026-06-12 | M0.3a mesher merged (6e13fc1, verifier PASS): pure-data buildChunkGeometry + AO quirk frozen, verbatim textures, demo/mesher.html, 2.2 ms/chunk. NOT ported (deferred to M0.4+): markDirty diagonal-chunk dirty propagation for interactive edits. createChunkMesh takes per-block materials Record |
 
 (Control plane appends one line per milestone close with evidence links.)
