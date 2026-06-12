@@ -61,6 +61,7 @@
         pointer-events: none;
       }
       .slot {
+        position: relative;
         width: 52px;
         height: 52px;
         border-radius: 8px;
@@ -75,17 +76,216 @@
           10px/1.2 'Segoe UI',
           sans-serif;
         backdrop-filter: blur(4px);
+        pointer-events: auto; /* hover shows the item name */
       }
       .slot.active {
         border-color: #ffd98a;
         box-shadow: 0 0 12px rgba(255, 217, 138, 0.5);
       }
-      .slot .swatch {
+      .swatch {
         width: 24px;
         height: 24px;
         border-radius: 4px;
-        margin-bottom: 4px;
         image-rendering: pixelated;
+        overflow: hidden;
+      }
+      .swatch .swatch-tex {
+        width: 24px;
+        height: 24px;
+        image-rendering: pixelated;
+        display: block;
+      }
+      .swatch.glyph {
+        background: #1d2336;
+        border: 1px solid rgba(160, 170, 220, 0.45);
+        box-sizing: border-box;
+        color: #ffd98a;
+        font:
+          600 10px/22px 'Segoe UI',
+          sans-serif;
+        text-align: center;
+      }
+      .count {
+        position: absolute;
+        right: 3px;
+        bottom: 2px;
+        color: #e6e9ff;
+        font:
+          600 11px/1 'Segoe UI',
+          sans-serif;
+        text-shadow: 0 1px 2px #000;
+        pointer-events: none;
+      }
+
+      #itemname {
+        position: fixed;
+        left: 50%;
+        bottom: 84px;
+        transform: translateX(-50%);
+        z-index: 10;
+        pointer-events: none;
+        color: #e6e9ff;
+        font:
+          13px/1 'Segoe UI',
+          sans-serif;
+        letter-spacing: 3px;
+        text-shadow: 0 1px 3px #000;
+        opacity: 0;
+        transition: opacity 0.2s;
+      }
+      #toast {
+        position: fixed;
+        left: 50%;
+        top: 38%;
+        transform: translateX(-50%);
+        z-index: 10;
+        pointer-events: none;
+        color: #ffd98a;
+        font:
+          600 14px/1 'Segoe UI',
+          sans-serif;
+        letter-spacing: 4px;
+        text-shadow: 0 1px 3px #000;
+        opacity: 0;
+        transition: opacity 0.15s;
+      }
+      #mineprog {
+        position: fixed;
+        left: 50%;
+        top: 56%;
+        transform: translateX(-50%);
+        z-index: 10;
+        pointer-events: none;
+        width: 120px;
+        height: 5px;
+        border-radius: 3px;
+        background: rgba(10, 12, 24, 0.7);
+        border: 1px solid rgba(160, 170, 220, 0.35);
+        display: none;
+        overflow: hidden;
+      }
+      #mineprog-fill {
+        height: 100%;
+        width: 0;
+        background: #ffd98a;
+      }
+
+      /* ── Inventory + crafting overlay (Tab) — GAME_DESIGN §10 dark panel ── */
+      #invcraft {
+        position: fixed;
+        inset: 0;
+        z-index: 15;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 3, 8, 0.55);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #cfd6ff;
+      }
+      #invcraft.open {
+        display: flex;
+      }
+      #invcraft .panel {
+        display: flex;
+        gap: 22px;
+        padding: 22px;
+        border-radius: 12px;
+        background: rgba(8, 10, 22, 0.92);
+        border: 1px solid rgba(160, 170, 220, 0.3);
+        box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+      }
+      #invcraft h2 {
+        margin: 0 0 10px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 4px;
+        color: #9aa3cc;
+      }
+      #invgrid {
+        display: grid;
+        grid-template-columns: repeat(8, 44px);
+        gap: 5px;
+      }
+      .inv-cell {
+        position: relative;
+        width: 44px;
+        height: 44px;
+        border-radius: 6px;
+        background: rgba(16, 19, 36, 0.85);
+        border: 2px solid rgba(160, 170, 220, 0.22);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+      .inv-cell.hot {
+        border-color: rgba(160, 170, 220, 0.5);
+      }
+      .inv-cell.active {
+        border-color: rgba(255, 217, 138, 0.55);
+      }
+      .inv-cell.selected {
+        border-color: #ffd98a;
+        box-shadow: 0 0 10px rgba(255, 217, 138, 0.5);
+      }
+      #recipes {
+        width: 300px;
+        max-height: 308px;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding-right: 6px;
+      }
+      .recipe {
+        padding: 7px 9px;
+        border-radius: 6px;
+        background: rgba(16, 19, 36, 0.85);
+        border: 1px solid rgba(160, 170, 220, 0.22);
+      }
+      .recipe .r-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .recipe .r-name {
+        font-size: 13px;
+        color: #e6e9ff;
+      }
+      .craft-btn {
+        font:
+          600 10px/1 'Segoe UI',
+          sans-serif;
+        letter-spacing: 2px;
+        color: #ffd98a;
+        background: rgba(255, 217, 138, 0.08);
+        border: 1px solid rgba(255, 217, 138, 0.5);
+        border-radius: 999px;
+        padding: 5px 12px;
+        cursor: pointer;
+      }
+      .craft-btn:hover:not(:disabled) {
+        background: rgba(255, 217, 138, 0.2);
+      }
+      .craft-btn:disabled {
+        color: rgba(160, 170, 220, 0.4);
+        border-color: rgba(160, 170, 220, 0.25);
+        background: none;
+        cursor: default;
+      }
+      .recipe .r-inputs {
+        margin-top: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 10px;
+        font-size: 11px;
+      }
+      .r-in.ok {
+        color: #9be0a8;
+      }
+      .r-in.lack {
+        color: #e08a8a;
       }
 
       #overlay {
@@ -166,8 +366,24 @@
   <body>
     <div id="app"></div>
     <div id="crosshair"></div>
+    <div id="mineprog"><div id="mineprog-fill"></div></div>
+    <div id="toast"></div>
+    <div id="itemname"></div>
     <div id="hotbar"></div>
     <div id="info"></div>
+
+    <div id="invcraft">
+      <div class="panel">
+        <div>
+          <h2>INVENTORY</h2>
+          <div id="invgrid"></div>
+        </div>
+        <div>
+          <h2>CRAFTING</h2>
+          <div id="recipes"></div>
+        </div>
+      </div>
+    </div>
 
     <div id="overlay">
       <h1>INTERSTELLAR CRAFT</h1>
@@ -176,10 +392,11 @@
         <span><b>W A S D</b></span
         ><span>Move</span> <span><b>Space</b></span
         ><span>Jump (low gravity)</span> <span><b>Shift</b></span
-        ><span>Sprint</span> <span><b>Left click</b></span
-        ><span>Mine block</span> <span><b>Right click</b></span
-        ><span>Place block</span> <span><b>1 - 6 / Wheel</b></span
-        ><span>Select block</span> <span><b>F</b></span
+        ><span>Sprint</span> <span><b>Hold left click</b></span
+        ><span>Mine block (tool-gated)</span> <span><b>Right click</b></span
+        ><span>Place block</span> <span><b>1 - 8 / Wheel</b></span
+        ><span>Select hotbar slot</span> <span><b>Tab</b></span
+        ><span>Inventory &amp; crafting</span> <span><b>F</b></span
         ><span>Fly mode (Space up / Ctrl down)</span>
       </div>
       <div class="start">CLICK&nbsp;TO&nbsp;START</div>

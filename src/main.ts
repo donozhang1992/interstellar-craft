@@ -1,13 +1,16 @@
 /**
- * Boot — assemble the M0 game (prototype/index.html parity):
- * worldgen → spawn → scene → HUD → input → one expensive black-hole RT pass →
- * first render → test hooks → READY → rAF loop.
+ * Boot — assemble the game (M1.4):
+ * worldgen → spawn → inventory (+ sandbox starter kit) → scene → HUD → input →
+ * crafting overlay → one expensive black-hole RT pass → first render → test
+ * hooks → READY → rAF loop.
  */
 import { createPlayer } from './core/player/movement';
 import { generateWorld } from './core/world/worldgen';
+import { createInventory, give, HOTBAR_SLOTS } from './core/player/inventory';
 import { Game } from './game/loop';
-import { Hud, HOTBAR } from './game/hud';
+import { Hud } from './game/hud';
 import { InputController } from './game/input';
+import { InventoryCraftOverlay } from './game/overlayUI';
 import { createGameScene } from './game/scene';
 import { findSpawn } from './game/spawn';
 import { installHooks } from './game/hooks';
@@ -20,24 +23,49 @@ if (!app) throw new Error('missing #app mount point');
 
 const world = generateWorld(WORLD_SEED);
 const player = createPlayer(findSpawn(world)); // prototype: heightAt centre + 2
+
+// TODO(M3): M1 SANDBOX STARTER KIT (control-plane decision) — until the quest
+// engine grants gear, a new game starts with a drill and the ore/hull stock
+// that worldgen only provides from M2 on. Hand-tier blocks are mined normally.
+const inv = createInventory();
+give(inv, 'drill_mk1', 1); // → hotbar slot 0
+give(inv, 'block:7', 8); // iron ore → slot 1
+give(inv, 'block:8', 8); // copper ore → slot 2
+give(inv, 'block:9', 4); // hull → slot 3
+
 const scene = createGameScene(world, app);
 
-const hud = new Hud(
-  document.getElementById('hotbar') ?? document.createElement('div'),
-  document.getElementById('info'),
-);
+const hud = new Hud(inv, {
+  hotbar: document.getElementById('hotbar') ?? document.createElement('div'),
+  info: document.getElementById('info'),
+  itemName: document.getElementById('itemname'),
+  toast: document.getElementById('toast'),
+  progress: document.getElementById('mineprog'),
+  progressFill: document.getElementById('mineprog-fill'),
+});
 const input = new InputController(
   player,
   (i) => hud.selectSlot(i),
-  HOTBAR.length,
-  () => hud.slotIndex,
+  HOTBAR_SLOTS,
+  () => inv.activeHotbarSlot,
 );
 input.attach({
   canvas: scene.renderer.domElement,
   overlay: document.getElementById('overlay'),
 });
 
-const game = new Game(world, player, scene, input, hud);
+const game = new Game(world, player, inv, scene, input, hud);
+
+const craftRoot = document.getElementById('invcraft');
+const craftGrid = document.getElementById('invgrid');
+const craftRecipes = document.getElementById('recipes');
+if (craftRoot && craftGrid && craftRecipes) {
+  new InventoryCraftOverlay(inv, game, input, {
+    root: craftRoot,
+    grid: craftGrid,
+    recipes: craftRecipes,
+  }).attach();
+}
 
 // Gargantua: orient billboard at the spawn camera and raymarch the offscreen RT
 // ONCE (ROADMAP M0.3b contract — renderRT is expensive; the disk stays static
