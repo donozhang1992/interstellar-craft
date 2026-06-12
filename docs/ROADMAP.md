@@ -22,10 +22,24 @@ perf budgets met · `prototype/` untouched (kept as reference).
 
 ## M1 — Core Loop: Inventory, Crafting, Tools, HUD
 
-0 blocks→12 blocks; hotbar/inventory; workbench + full recipe table; tool tiers
-gate mining; HUD (hotbar, stat bars, prompts). **Exit**: every GAME_DESIGN §5 recipe
-unit-tested · E2E craft-and-use flow · HUD visual baselines · mining speed matrix
-(block × tool) snapshot test.
+6→13 block types; hotbar(8)/inventory; full recipe table; tool tiers gate mining
+(hold-to-mine with progress, replaces M0 instant click); crafting overlay UI; HUD
+expansion. M1 design decisions (logged 2026-06-12): block IDs 1–6 frozen, new types
+7–13; "lamp" fulfills glowstone role; iron/copper ore EXIST as items/blocks but only
+spawn in worldgen at M2 (E2E uses give() hook); crafting UI opens via Tab anywhere
+(workbench-proximity requirement deferred to M3 quest flavor); HOTBAR = 8 slots
+(HUD baselines change — pre-approved).
+
+| # | Task | Module footprint | Order |
+|---|------|-----------------|-------|
+| 1.1 | Inventory + item system (TDD): stacks, STACK_MAX 64, hotbar 8, tools as items | `src/core/player/inventory.ts`, `src/core/items/**` | first |
+| 1.2 | Recipe table + craft() (TDD, every §5 recipe) | `src/core/crafting/**` | ∥ 1.3, after 1.1 |
+| 1.3 | Mining model (TDD): hardness × tool matrix, hold-progress, min-tool gate | `src/core/mining/**` | ∥ 1.2, after 1.1 |
+| 1.4 | Game glue + HUD: 8-slot hotbar, inventory/craft overlay (Tab), hold-to-mine input + progress UI, textures for blocks 7–13, place-from-inventory | `src/game/**`, `src/render/textures/**` (additive), `index.html` | after 1.2+1.3 |
+| 1.5 | E2E craft-and-use flows, mining matrix snapshot, HUD visual baselines (re-baseline approved), adversarial pass | `tests/**` | last |
+
+**Exit**: every GAME_DESIGN §5 recipe unit-tested · E2E craft-and-use flow ·
+HUD visual baselines · mining speed matrix (block × tool) snapshot test.
 
 ## M2 — Survival: Stats, Death, Caves
 

@@ -40,25 +40,32 @@ explicit completion predicate that must be unit-testable.
 
 Free mode after credits: creative-style building, flight enabled.
 
-## 4. Blocks (12 types)
+## 4. Blocks (13 types)
 
-| ID | Name | Hardness (s with Mk1) | Min tool | Drops | Notes |
-|----|------|----------------------|----------|-------|-------|
+> IDs 1–6 are the M0-ported prototype blocks and are FROZEN (terrain snapshot hash
+> depends on them). New types extend 7–13. "lamp" fulfills the former "glowstone"
+> design role (emissive placeable light). Hardness = seconds to mine BY HAND.
+
+| ID | Name | Hardness (s, hand) | Min tool | Drops | Notes |
+|----|------|--------------------|----------|-------|-------|
 | 1 | regolith | 0.6 | hand | itself | surface layer |
-| 2 | basalt | 1.5 | Mk1 | itself | crust, cave walls |
-| 3 | ice | 0.8 | hand | itself | → O₂ + glass feedstock |
-| 4 | iron_ore | 2.5 | Mk1 | iron_ore | depth y<24 |
-| 5 | copper_ore | 2.0 | Mk1 | copper_ore | depth y<28 |
-| 6 | crystal | 3.5 | Mk2 | crystal | caves only, emissive |
-| 7 | glowstone | 1.0 | Mk1 | glowstone | cave light source, emissive |
-| 8 | hull | 2.0 | Mk1 | hull | salvage + crafted plate |
-| 9 | glass | 0.5 | hand | — (breaks) | smelt ice |
-| 10 | antenna | 1.0 | Mk1 | itself | quest block, craftable ch2+ |
-| 11 | beacon_core | 4.0 | Mk2 | itself | quest block, craftable ch4+ |
-| 12 | launchpad | 4.0 | Mk2 | itself | quest block, craftable ch4+ |
+| 2 | rock | 1.2 | hand | itself | ore-bearing stratum (legacy) |
+| 3 | basalt | 1.5 | Mk1 | itself | deep crust, cave walls (M2) |
+| 4 | crystal | 3.5 | Mk2 | itself | emissive; surface clusters + caves (M2) |
+| 5 | ice | 0.8 | hand | itself | → O₂ + glass feedstock |
+| 6 | lamp | 1.0 | Mk1 | itself | emissive light source (≈ "glowstone") |
+| 7 | iron_ore | 2.5 | Mk1 | itself | spawns in M2 worldgen rework (y<24) |
+| 8 | copper_ore | 2.0 | Mk1 | itself | spawns in M2 worldgen rework (y<28) |
+| 9 | hull | 2.0 | Mk1 | itself | salvage + crafted plate |
+| 10 | glass | 0.5 | hand | — (breaks) | smelt ice |
+| 11 | antenna | 1.0 | Mk1 | itself | quest block, craftable ch2+ |
+| 12 | beacon_core | 4.0 | Mk2 | itself | quest block, craftable ch4+ |
+| 13 | launchpad | 4.0 | Mk2 | itself | quest block, craftable ch4+ |
 
-Tool speed multipliers: hand ×1, Drill Mk1 ×2, Mk2 ×4, Plasma ×8. A block below its
-min tool cannot be mined (progress bar refuses).
+Tool speed multipliers: hand ×1, Drill Mk1 ×2, Mk2 ×4, Plasma ×8. Mining time =
+hardness / multiplier (continuous hold-to-mine with progress, replacing the M0
+prototype's instant click — an intentional M1 behavior change). A block below its
+min tool cannot be mined (progress refuses to start).
 
 ## 5. Items & Recipes (~20)
 
@@ -69,9 +76,9 @@ if ingredients present). Recipes unlock by chapter.
 Plasma Drill (1 Mk2 + 6 crystal + 2 copper) · **Equipment**: Scanner (2 copper + 1
 glass + 1 crystal), Jump Pack (4 hull + 3 copper + 2 crystal), Magnet Glove (2 iron +
 3 copper), Solar Panel (3 glass + 2 copper + 1 iron) · **Consumables**: O₂ Canister
-(2 ice + 1 iron, restores 40 O₂), Flare (1 glowstone + 1 copper, placeable light,
+(2 ice + 1 iron, restores 40 O₂), Flare (1 lamp + 1 copper, placeable light,
 60 s) · **Materials**: Iron Plate (2 iron_ore), Glass (2 ice, needs Workbench
-"smelt"), Hull Plate (2 iron_plate + 1 basalt) · **Quest**: Antenna Block (2 iron_plate +
+"smelt"), Hull Plate (2 iron_plate + 1 basalt), Lamp (2 crystal + 1 copper) · **Quest**: Antenna Block (2 iron_plate +
 1 copper), Beacon Core (4 iron_plate + 4 crystal), Launchpad Block (2 hull + 2 basalt),
 Fusion Igniter (2 beacon_core + 4 crystal + 2 copper).
 
