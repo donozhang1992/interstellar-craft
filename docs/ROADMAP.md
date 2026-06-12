@@ -63,5 +63,6 @@ live · README updated.
 |------|-------|
 | 2026-06-12 | Harness created; M0 started |
 | 2026-06-12 | M0.1 scaffold merged (03c4e07): Vite+TS+Vitest+Playwright, core-boundary lint proven, `npm run ci` green (5 unit / 100% rng cov / e2e smoke msedge) |
+| 2026-06-12 | M0.2a core world merged (ef0603f, verifier PASS): voxel storage + seeded worldgen + DDA raycast, 29 unit tests, core cov 99%. Terrain contract: hash 55922fda @ seed 0x7e. Accepted deviations: mulberry32 replaces unseeded sine hash; raycast strict maxDist. Remaining M0.2b: AABB physics port |
 
 (Control plane appends one line per milestone close with evidence links.)
