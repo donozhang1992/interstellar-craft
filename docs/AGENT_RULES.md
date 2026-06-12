@@ -77,7 +77,32 @@ Input: task brief + branch name only (not the dev agent's reasoning). Steps:
    edits, test weakening, scope creep.
 Verdict: `PASS` or `FINDINGS: [numbered list with repro steps]`. No style nitpicks.
 
-## 8. Control-Plane Merge Checklist
+## 8. Token Budget Discipline (control plane — binding)
+
+The human operator runs on a subscription with a rolling token window. Work is
+planned in **small, interruption-safe chunks** so hitting the limit never loses work.
+
+1. **Chunk sizing**: one chunk = one agent with a scope estimated ≤ ~150k output
+   tokens (rule of thumb: scaffold/config ≈ 80–150k; port-one-module-with-tests
+   ≈ 150–300k → split into 2 chunks; verification pass ≈ 50–100k). Never launch
+   more concurrent agents than the remaining budget can finish.
+2. **Budget check at every chunk boundary**: before launching agents, the control
+   plane checks the current window burn and reset time via
+   `npx ccusage@latest blocks` (reads local Claude Code transcripts). If the tool is
+   unavailable or ambiguous, ask the operator for `/usage` status instead of guessing.
+3. **Decision rule**: estimated chunk cost > ~70% of remaining window ⇒ don't start
+   it. Either (a) pick a smaller interruption-safe task (docs, config, review,
+   planning), or (b) report the reset time and pause.
+4. **Interruption safety**: every agent commits small and often (each commit a
+   coherent, test-green-if-possible state). A chunk interrupted mid-flight must be
+   resumable from `git log` + task tracker alone.
+5. **Resume protocol**: on a fresh session, the control plane reconstructs state
+   from: task tracker → `git worktree list` + branch logs → ROADMAP status log.
+   Never restart finished work; verify it instead.
+6. **Reporting**: at each chunk start, the control plane states (one line): chunk
+   scope, estimated cost, measured remaining window. At chunk end: actual cost.
+
+## 9. Control-Plane Merge Checklist
 
 - [ ] Dev report complete + verifier PASS
 - [ ] Rebase/merge branch onto current main; rerun `npm run ci` post-merge
