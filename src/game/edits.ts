@@ -5,7 +5,9 @@
  * Prototype semantics preserved:
  *  - the view ray is (0,0,-1) rotated by the YXZ euler (pitch, yaw, 0), cast
  *    from the camera/eye position (feet + EYE_HEIGHT), default reach 7;
- *  - mine: set the hit voxel to air, no other conditions;
+ *  - mine: M1 replaced the prototype's instant click with the core
+ *    hold-to-mine state machine (GAME_DESIGN §4) — the loop raycasts per
+ *    fixed step and removes the voxel on completion (loop.ts);
  *  - place: target = hit + face normal; rejected if the target voxel is solid
  *    OR if the new block's cell would overlap the player AABB (the prototype's
  *    anti-place-inside-player check, verbatim inequality);
@@ -34,15 +36,6 @@ export function eyePos(player: PlayerState): Vec3 {
 /** Crosshair raycast (prototype `raycastBlock()`, reach 7). */
 export function raycastFromPlayer(world: VoxelWorld, player: PlayerState): RaycastResult | null {
   return raycast(world, eyePos(player), viewDir(player.yaw, player.pitch), DEFAULT_MAX_DIST);
-}
-
-/** Mine the targeted block. Returns the edited voxel, or null if nothing was hit. */
-export function mineBlock(world: VoxelWorld, player: PlayerState): Vec3 | null {
-  const hit = raycastFromPlayer(world, player);
-  if (!hit) return null;
-  const { x, y, z } = hit.hit;
-  world.setBlock(x, y, z, 0);
-  return { x, y, z };
 }
 
 /**

@@ -1,59 +1,180 @@
 /**
- * DOM HUD — port of the prototype's hotbar UI + info line (prototype/index.html
- * "物品栏 UI" section). Slot swatches use the prototype block base colours (with
- * the glow box-shadow for crystal/lamp); labels are English (M0 page is English).
+ * DOM HUD — M1.4 rewrite over the M0 port (GAME_DESIGN §10 minimal style).
+ *
+ * The hotbar now renders the REAL inventory (slots 0–7 of the 40-slot core
+ * inventory): item swatch (the block's actual 16×16 texture canvas, or a
+ * glyph chip for tools/materials), count badge (shown for count ≥ 2), active
+ * ring, and the active item's displayName on slot switch / hover.
+ *
+ * Determinism contract (visual baselines): every transient element (toast,
+ * item-name label, pickup flash) is timed in SIM STEPS, never wall-clock —
+ * `stepTimers()` is called once per fixed step by the game loop, so under
+ * `__TEST__` the HUD after `stepFrames(n)` is a pure function of the steps.
+ * DOM writes happen in `refresh()` (called once per rendered frame) and only
+ * touch slots whose content signature changed.
  */
-import { BLOCK_DEFS } from '../render/textures/blockTextures';
+import { BLOCK_DEFS, makeBlockCanvas } from '../render/textures/blockTextures';
+import { getItem, type ItemId } from '../core/items/catalog';
+import {
+  HOTBAR_SLOTS,
+  setActiveSlot,
+  type Inventory,
+  type ItemStack,
+} from '../core/player/inventory';
 
-/** Prototype HOTBAR: the 6 legacy block ids in slot order. */
-export const HOTBAR: readonly number[] = [1, 2, 3, 4, 5, 6];
+/** Transient UI lifetimes in fixed sim steps (1/60 s each). */
+const TOAST_STEPS = 90; // 1.5 s
+const NAME_STEPS = 120; // 2 s
 
-/** English display names for the M0 page (BLOCK_DEFS carries the legacy Chinese names). */
-export const BLOCK_LABELS: Readonly<Record<number, string>> = {
-  1: 'Regolith',
-  2: 'Rock',
-  3: 'Basalt',
-  4: 'Crystal',
-  5: 'Ice',
-  6: 'Lamp',
-};
+/** Short glyph for non-block items (tools get their tier, others initials). */
+function itemGlyph(itemId: ItemId): string {
+  const def = getItem(itemId);
+  if (def.kind === 'tool') {
+    return def.toolTier === 'plasma' ? 'PL' : def.toolTier === 'mk2' ? 'M2' : 'M1';
+  }
+  return def.displayName
+    .split(' ')
+    .map((w) => w[0] ?? '')
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+/**
+ * Build a swatch element for an item: block items reuse the block's actual
+ * texture canvas (pixelated, same pixels as the world); everything else is a
+ * glyph chip. Shared with the inventory/crafting overlay.
+ */
+export function createItemSwatch(itemId: ItemId): HTMLElement {
+  const def = getItem(itemId);
+  if (def.kind === 'block' && def.blockId !== undefined) {
+    const blockDef = BLOCK_DEFS[def.blockId];
+    if (blockDef) {
+      const wrap = document.createElement('div');
+      wrap.className = 'swatch';
+      const canvas = makeBlockCanvas(blockDef);
+      canvas.className = 'swatch-tex';
+      if (blockDef.glow) {
+        wrap.style.boxShadow = `0 0 8px rgb(${blockDef.base.join(',')})`;
+      }
+      wrap.appendChild(canvas);
+      return wrap;
+    }
+  }
+  const chip = document.createElement('div');
+  chip.className = 'swatch glyph';
+  chip.textContent = itemGlyph(itemId);
+  return chip;
+}
+
+export interface HudElements {
+  hotbar: HTMLElement;
+  info: HTMLElement | null;
+  /** Active-item name label (transient, above the hotbar). */
+  itemName: HTMLElement | null;
+  /** Transient toast line ("INVENTORY FULL", "TOOL TOO WEAK", pickups). */
+  toast: HTMLElement | null;
+  /** Mining progress bar container + fill (near the crosshair). */
+  progress: HTMLElement | null;
+  progressFill: HTMLElement | null;
+}
 
 export class Hud {
-  private slotIndexValue = 0;
-  private readonly hotbarEl: HTMLElement;
+  private readonly slotEls: HTMLElement[] = [];
+  /** Per-slot content signature ("itemId:count" | "") to skip DOM churn. */
+  private readonly slotSig: string[] = [];
+  private toastTimer = 0;
+  private toastText = '';
+  private nameTimer = 0;
+  private nameText = '';
+  private progressValue = 0;
 
-  constructor(hotbarEl: HTMLElement, infoEl: HTMLElement | null) {
-    this.hotbarEl = hotbarEl;
-    hotbarEl.replaceChildren();
-    HOTBAR.forEach((id, i) => {
-      const def = BLOCK_DEFS[id];
-      if (!def) return;
+  constructor(
+    private readonly inv: Inventory,
+    private readonly els: HudElements,
+  ) {
+    els.hotbar.replaceChildren();
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
       const slot = document.createElement('div');
-      slot.className = 'slot' + (i === 0 ? ' active' : '');
-      const sw = document.createElement('div');
-      sw.className = 'swatch';
-      sw.style.background = `rgb(${def.base.join(',')})`;
-      if (def.glow) sw.style.boxShadow = `0 0 8px rgb(${def.base.join(',')})`;
-      slot.appendChild(sw);
-      slot.appendChild(document.createTextNode(BLOCK_LABELS[id] ?? def.name));
-      hotbarEl.appendChild(slot);
-    });
-    if (infoEl) infoEl.textContent = 'INTERSTELLAR CRAFT · F fly · Esc release mouse';
+      slot.className = 'slot' + (i === inv.activeHotbarSlot ? ' active' : '');
+      slot.addEventListener('mouseenter', () => this.showName(this.inv.slots[i] ?? null));
+      els.hotbar.appendChild(slot);
+      this.slotEls.push(slot);
+      this.slotSig.push('\0'); // never matches ⇒ first refresh fills all
+    }
+    // Info line FROZEN at the M0 string: it appears in every game-page visual
+    // baseline, only 5 of which are approved to change in M1.4 (Tab is taught
+    // on the title overlay instead).
+    if (els.info) els.info.textContent = 'INTERSTELLAR CRAFT · F fly · Esc release mouse';
+    this.refresh();
   }
 
-  get slotIndex(): number {
-    return this.slotIndexValue;
-  }
-
-  /** Block id the current slot places (prototype `HOTBAR[slotIndex]`). */
-  get selectedBlock(): number {
-    return HOTBAR[this.slotIndexValue] ?? 1;
-  }
-
-  /** Prototype `selectSlot(i)` — clamps to the 6 slots, updates the active ring. */
+  /** Select a hotbar slot: core state + active ring + transient name label. */
   selectSlot(i: number): void {
-    if (!Number.isInteger(i) || i < 0 || i >= HOTBAR.length) return;
-    this.slotIndexValue = i;
-    [...this.hotbarEl.children].forEach((el, j) => el.classList.toggle('active', j === i));
+    if (!Number.isInteger(i) || i < 0 || i >= HOTBAR_SLOTS) return;
+    setActiveSlot(this.inv, i);
+    this.slotEls.forEach((el, j) => el.classList.toggle('active', j === i));
+    this.showName(this.inv.slots[i] ?? null);
+  }
+
+  /** Transient toast ("INVENTORY FULL" / "TOOL TOO WEAK" / pickups). */
+  toast(text: string): void {
+    this.toastText = text;
+    this.toastTimer = TOAST_STEPS;
+  }
+
+  /** Pickup feedback after a mining drop landed in the inventory. */
+  pickup(itemId: ItemId): void {
+    this.toast(`+1 ${getItem(itemId).displayName}`);
+  }
+
+  /** Mining progress 0..1 (bar hidden at 0) — set by the loop each frame. */
+  setProgress(p: number): void {
+    this.progressValue = p;
+  }
+
+  /** Advance transient timers by one fixed sim step (loop calls this). */
+  stepTimers(): void {
+    if (this.toastTimer > 0) this.toastTimer--;
+    if (this.nameTimer > 0) this.nameTimer--;
+  }
+
+  /** Sync the DOM to current state — called once per rendered frame. */
+  refresh(): void {
+    for (let i = 0; i < HOTBAR_SLOTS; i++) {
+      const s = this.inv.slots[i] ?? null;
+      const sig = s ? `${s.itemId}:${s.count}` : '';
+      if (sig === this.slotSig[i]) continue;
+      this.slotSig[i] = sig;
+      const slot = this.slotEls[i]!;
+      slot.replaceChildren();
+      if (s) {
+        slot.appendChild(createItemSwatch(s.itemId));
+        if (s.count >= 2) {
+          const badge = document.createElement('div');
+          badge.className = 'count';
+          badge.textContent = String(s.count);
+          slot.appendChild(badge);
+        }
+      }
+    }
+    const { itemName, toast, progress, progressFill } = this.els;
+    if (itemName) {
+      itemName.textContent = this.nameTimer > 0 ? this.nameText : '';
+      itemName.style.opacity = this.nameTimer > 0 ? '1' : '0';
+    }
+    if (toast) {
+      toast.textContent = this.toastTimer > 0 ? this.toastText : '';
+      toast.style.opacity = this.toastTimer > 0 ? '1' : '0';
+    }
+    if (progress && progressFill) {
+      progress.style.display = this.progressValue > 0 ? 'block' : 'none';
+      progressFill.style.width = `${Math.min(100, this.progressValue * 100).toFixed(1)}%`;
+    }
+  }
+
+  private showName(stack: ItemStack | null): void {
+    this.nameText = stack ? getItem(stack.itemId).displayName : '';
+    this.nameTimer = this.nameText ? NAME_STEPS : 0;
   }
 }
