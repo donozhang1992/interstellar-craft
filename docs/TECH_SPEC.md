@@ -104,9 +104,11 @@ clock. (Same pattern as trailer's `renderFrame(i)` — proven to work headless.)
 3. **Stars/nebulae need `renderOrder = -2`** so they draw before the billboard;
    three.js transparent sorting is by object center and WILL put stars on top of the
    black-hole shadow otherwise.
-4. **Disk inclination formula**: `bhN = up + view*(-view.y + 0.028)` then
-   `bhN.applyAxisAngle(view, -0.21)`. The naive `up - view*k` looks "squat" because
-   it ignores camera elevation. Values are final, user-approved against film stills.
+4. **Disk inclination formula**: `bhN = up + view*(-view.y + 0.06)` then
+   `bhN.applyAxisAngle(view, -0.21)` (≈3.78° tilt + −12° roll; values pinned by
+   tests/unit/render/blackholeDiskBasis.test.ts against the trailer source). The
+   naive `up - view*k` looks "squat" because it ignores camera elevation. Values
+   are final, user-approved against film stills.
 5. **Volume disk**: Gaussian-thickness fog (DISK_H = 0.26 rs) with step-size
    subdivision `dt = min(dt, 0.5*DISK_H/|dir.y|)`. A zero-thickness plane leaves a
    concave gap at the disk/lens junction.
@@ -114,8 +116,8 @@ clock. (Same pattern as trailer's `renderFrame(i)` — proven to work headless.)
    geometric corner) — keep it.** The final look was tuned WITH this quirk; "fixing"
    it changes the approved visuals. Port verbatim, document, move on.
 7. PointLight intensities in r160 physical lighting need 5–60 range, not 0–2.
-8. Black-hole shader needs built-in soft compression `col/(1+0.42*col)` before
-   bloom or close-ups blow out white.
+8. Black-hole shader needs built-in soft compression `col/(1 + 0.5*col)` before
+   bloom or close-ups blow out white (0.5 is the trailer-actual value).
 9. Composer chain: RenderPass → UnrealBloomPass → OutputPass → custom grade pass
    (grain/vignette/CA). Order matters; OutputPass before grade keeps grain linear-safe.
 
