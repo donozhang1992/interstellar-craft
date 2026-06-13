@@ -14,6 +14,7 @@ import { InventoryCraftOverlay } from './game/overlayUI';
 import { createGameScene } from './game/scene';
 import { findSpawn } from './game/spawn';
 import { installHooks } from './game/hooks';
+import { DecodeOverlay } from './game/decodeUI';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -71,6 +72,8 @@ const hud = new Hud(inv, {
   hpBar: statBar('stat-hp', 'stat-hp-fill'),
   o2Bar: statBar('stat-o2', 'stat-o2-fill'),
   energyBar: statBar('stat-energy', 'stat-energy-fill'),
+  objective: document.getElementById('objective'),
+  subtitle: document.getElementById('subtitle'),
 });
 const input = new InputController(
   player,
@@ -85,10 +88,29 @@ input.attach({
 
 const game = new Game(world, player, inv, scene, input, hud);
 
+// Decode panel (M3.3 ch2 step2) — wired before the key handler so [P] / the
+// antenna [E] can open it. Suppressed while any other overlay is open.
+const decodeRoot = document.getElementById('decode');
+const decodeOverlay =
+  decodeRoot &&
+  document.getElementById('decode-target') &&
+  document.getElementById('decode-panel') &&
+  document.getElementById('decode-progress') &&
+  document.getElementById('decode-submit')
+    ? new DecodeOverlay(game, input, {
+        root: decodeRoot,
+        target: document.getElementById('decode-target')!,
+        panel: document.getElementById('decode-panel')!,
+        progress: document.getElementById('decode-progress')!,
+        submit: document.getElementById('decode-submit') as HTMLButtonElement,
+      })
+    : null;
+decodeOverlay?.attach();
+
 // M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
-// G = flare (place a 60 s emissive lamp marker at the feet). Suppressed while the
-// inventory/crafting overlay is open. Edge-triggered (ignore OS auto-repeat). A
-// placed flare's voxel is marked dirty so it meshes immediately.
+// G = flare (place a 60 s emissive lamp marker at the feet). M3.3 quest keys:
+// E = salvage the crash pod (ch1) / open decode at the antenna (ch2); P = open
+// the decode panel directly. Suppressed while an overlay is open. Edge-triggered.
 addEventListener('keydown', (e) => {
   if (input.uiOpen || e.repeat) return;
   if (e.code === 'KeyC') {
@@ -96,6 +118,12 @@ addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyG') {
     const placed = game.survival.useFlare();
     if (placed) scene.worldMeshes.markDirtyAt(placed.x, placed.y, placed.z);
+  } else if (e.code === 'KeyE') {
+    // ch1: salvage the pod within reach; ch2+: if the antenna is up, open decode.
+    const salvaged = game.salvagePod();
+    if (!salvaged && game.quest.state.flags.antennaBuilt) decodeOverlay?.open();
+  } else if (e.code === 'KeyP') {
+    decodeOverlay?.open();
   }
 });
 
