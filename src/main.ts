@@ -6,6 +6,7 @@
  */
 import { createPlayer } from './core/player/movement';
 import { generateWorld } from './core/world/worldgen';
+import type { VoxelWorld } from './core/world/voxelWorld';
 import { createInventory, give, HOTBAR_SLOTS } from './core/player/inventory';
 import { Game } from './game/loop';
 import { Hud } from './game/hud';
@@ -16,6 +17,9 @@ import { findSpawn } from './game/spawn';
 import { installHooks } from './game/hooks';
 import { DecodeOverlay } from './game/decodeUI';
 import { createObserverJelly } from './render/observerJelly';
+import { createCrystalBeetle } from './render/crystalBeetle';
+import { createBeetle, stepBeetle } from './core/entity/beetle';
+import { createWreckedDrone } from './render/wreckedDrone';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -97,12 +101,79 @@ const game = new Game(world, player, inv, scene, input, hud);
 if (!window.__TEST__) {
   const jelly = createObserverJelly(player.pos.x + 3, player.pos.y + 2, player.pos.z - 3);
   scene.scene.add(jelly.group);
+
+  // Crystal Beetles (GAME_DESIGN §3e/§8) — a few wander cave floors and flee the
+  // player; cornered they shed 1 crystal shard. Added ONLY outside __TEST__ (like
+  // the jelly) so the byte-identical world/sky baselines never see these moving
+  // emissive objects. The pure core (entity/beetle.ts) owns the behavior; the
+  // render shell reads beetle.pos. Driven once per fixed sim step via game.onStep
+  // (deterministic), with the per-frame pulse on game.onRender.
+  const beetleSpots = findCaveFloorSpots(world, 3);
+  const beetles = beetleSpots.map((s, i) => {
+    const core = createBeetle([s.x + 0.5, s.y, s.z + 0.5], 0x7e * 131 + i * 977);
+    const view = createCrystalBeetle(core.pos[0], core.pos[1], core.pos[2]);
+    scene.scene.add(view.group);
+    return { core, view };
+  });
+
+  // Wrecked Drone (GAME_DESIGN §3e/§8) — the core state lives on the game (repair
+  // + follow is hook-testable in loop.ts); here we only add the render view and
+  // sync it from game.drone. Repaired via [R] (or [E] within reach) below. The
+  // companion PointLight is added only here, outside __TEST__, so baselines stay
+  // byte-identical and the r160 point-light budget (5–60) is untouched.
+  const droneView = createWreckedDrone(game.drone.pos[0], game.drone.pos[1], game.drone.pos[2]);
+  scene.scene.add(droneView.group);
+
+  game.onStep = (dt) => {
+    const p = player.pos;
+    const ctx = {
+      playerPos: [p.x, p.y, p.z] as [number, number, number],
+      isSolid: (x: number, y: number, z: number): boolean => world.isSolid(x, y, z),
+    };
+    for (const b of beetles) {
+      const { didShed } = stepBeetle(b.core, ctx, dt);
+      if (didShed) {
+        give(inv, 'block:4', 1); // crystal shard == crystal (integration contract)
+        hud.pickup('block:4');
+      }
+    }
+  };
+
   game.onRender = (dt) => {
     // ch1: hover near the pod; ch2+: lift toward a "raise the mast" beacon point.
     const ch2 = game.quest.state.chapter >= 2;
     jelly.setTarget(player.pos.x + 3, ch2 ? player.pos.y + 8 : player.pos.y + 2, player.pos.z - 3);
     jelly.update(dt);
+    for (const b of beetles) {
+      b.view.syncTo(b.core.pos[0], b.core.pos[1], b.core.pos[2]);
+      b.view.setShed(b.core.shed);
+      b.view.update(dt);
+    }
+    droneView.syncTo(game.drone.pos[0], game.drone.pos[1], game.drone.pos[2]);
+    droneView.setRepaired(game.drone.repaired);
+    droneView.update(dt);
   };
+}
+
+/**
+ * Deterministically pick up to `n` cave-floor cells (air with a solid floor just
+ * below, in the deep crystal band y<20, §9) for entity spawns. Scans the fixed
+ * seed-0x7e world in a stable order so the spots are reproducible run to run.
+ * Returns the FLOOR-standing air cell (the entity sits on the solid below it).
+ */
+function findCaveFloorSpots(w: VoxelWorld, n: number): { x: number; y: number; z: number }[] {
+  const out: { x: number; y: number; z: number }[] = [];
+  for (let y = 6; y < 20 && out.length < n; y++) {
+    for (let x = 2; x < w.sizeX - 2 && out.length < n; x += 7) {
+      for (let z = 2; z < w.sizeZ - 2 && out.length < n; z += 7) {
+        // Air cell with headroom and a solid floor below = a stand-able spot.
+        if (w.getBlock(x, y, z) === 0 && w.getBlock(x, y + 1, z) === 0 && w.isSolid(x, y - 1, z)) {
+          out.push({ x, y, z });
+        }
+      }
+    }
+  }
+  return out;
 }
 
 // Decode panel (M3.3 ch2 step2) — wired before the key handler so [P] / the
@@ -126,8 +197,10 @@ decodeOverlay?.attach();
 
 // M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
 // G = flare (place a 60 s emissive lamp marker at the feet). M3.3 quest keys:
-// E = salvage the crash pod (ch1) / open decode at the antenna (ch2); P = open
-// the decode panel directly. Suppressed while an overlay is open. Edge-triggered.
+// E = salvage the crash pod (ch1) / repair the wrecked drone in reach (M4.3a) /
+// open decode at the antenna (ch2); R = repair the wrecked drone (M4.3a §3e);
+// P = open the decode panel directly. Suppressed while an overlay is open.
+// Edge-triggered.
 addEventListener('keydown', (e) => {
   if (input.uiOpen || e.repeat) return;
   if (e.code === 'KeyC') {
@@ -135,10 +208,19 @@ addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyG') {
     const placed = game.survival.useFlare();
     if (placed) scene.worldMeshes.markDirtyAt(placed.x, placed.y, placed.z);
+  } else if (e.code === 'KeyR') {
+    // Repair the wrecked drone when in reach (2 copper + 1 crystal).
+    if (game.repairWreckedDrone()) hud.toast('DRONE ONLINE');
   } else if (e.code === 'KeyE') {
-    // ch1: salvage the pod within reach; ch2+: if the antenna is up, open decode.
+    // ch1: salvage the pod within reach; else repair the drone in reach; else
+    // (ch2+) if the antenna is up, open decode.
     const salvaged = game.salvagePod();
-    if (!salvaged && game.quest.state.flags.antennaBuilt) decodeOverlay?.open();
+    if (salvaged) return;
+    if (game.repairWreckedDrone()) {
+      hud.toast('DRONE ONLINE');
+      return;
+    }
+    if (game.quest.state.flags.antennaBuilt) decodeOverlay?.open();
   } else if (e.code === 'KeyP') {
     decodeOverlay?.open();
   }

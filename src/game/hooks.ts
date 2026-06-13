@@ -76,6 +76,10 @@ export interface GameHooks {
   setFlag?(name: string): void;
   /** Add n (default 1) to a quest counter from a test. M3.4 driver. */
   addCounter?(key: string, n?: number): void;
+  /** Wrecked-drone state (pos + repaired). M4.3a — read fresh each call. */
+  drone?(): { pos: [number, number, number]; repaired: boolean };
+  /** Attempt to repair the wrecked drone in reach (2 copper + 1 crystal). M4.3a. */
+  repairDrone?(): boolean;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -118,6 +122,11 @@ export function installHooks(game: Game): GameHooks {
     questObjective: () => game.quest.objective(),
     setFlag: (name: string) => game.quest.raiseFlag(name),
     addCounter: (key: string, n = 1) => game.quest.addCounter(key, n),
+    drone: () => ({
+      pos: [...game.drone.pos] as [number, number, number],
+      repaired: game.drone.repaired,
+    }),
+    repairDrone: () => game.repairWreckedDrone(),
   };
   window.__game = hooks;
   return hooks;

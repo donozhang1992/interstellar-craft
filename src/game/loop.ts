@@ -25,7 +25,7 @@
  */
 import { PHYS, stepPlayer, type PlayerState } from '../core/player/movement';
 import type { VoxelWorld } from '../core/world/voxelWorld';
-import { activeItem, type Inventory } from '../core/player/inventory';
+import { activeItem, has, type Inventory } from '../core/player/inventory';
 import { getItem } from '../core/items/catalog';
 import { createMiningState, stepMining, applyMiningDrop } from '../core/mining/progress';
 import type { MiningTier } from '../core/mining/model';
@@ -33,12 +33,22 @@ import type { SurvivalDrillTier } from '../core/player/stats';
 import { give } from '../core/player/inventory';
 import { validateAntenna } from '../core/quest/antenna';
 import { Survival } from './survival';
+import {
+  createDrone,
+  repairDrone,
+  stepDrone,
+  type Drone,
+  type DroneInventory,
+} from '../core/entity/drone';
+import { take, count as invCount } from '../core/player/inventory';
 import { placeBlock, raycastFromPlayer } from './edits';
 import {
   QuestBridge,
   COUNTER_MOVE,
   COUNTER_MINED_REGOLITH,
   COUNTER_PLACED,
+  COUNTER_CAVE_DEPTH,
+  COUNTER_COLLECTED_CRYSTAL,
   FLAG_SALVAGED,
   FLAG_ANTENNA_BUILT,
 } from './quest';
@@ -48,9 +58,25 @@ import type { Hud } from './hud';
 
 /** Regolith block id (GAME_DESIGN §4) — mining one to completion feeds ch1. */
 const REGOLITH_ID = 1;
+/** Crystal block id (GAME_DESIGN §4) — mining one to inventory feeds ch3 harvest. */
+const CRYSTAL_ID = 4;
+/** ch3 `descend` depth gate (§3d): feet y strictly below this = "deep". */
+const CAVE_DEPTH_Y = 20;
 
 /** Max distance (blocks) from the crash pod for the [E] salvage interaction. */
 export const POD_SALVAGE_REACH = 5;
+
+/** Jump Pack item id (GAME_DESIGN §5 equipment) — owning it enables the hover. */
+const JUMP_PACK_ID = 'jump_pack';
+
+/** Max distance (blocks) from the wrecked drone for the [R]/[E] repair interaction. */
+export const DRONE_REPAIR_REACH = 4;
+/**
+ * Max continuous hover time per airborne stint (GAME_DESIGN §7: "hold-jump hover
+ * ≤ 2 s"). The budget refills only on landing — you cannot chain two full hovers
+ * without touching ground.
+ */
+export const JUMP_PACK_HOVER_SECONDS = 2;
 
 export class Game {
   private accumulator = 0;
@@ -59,13 +85,31 @@ export class Game {
   paused = false;
   private readonly mining = createMiningState();
   private miningProgress = 0;
+  /** ch3 `descend` latch: raised once feet y first drops below CAVE_DEPTH_Y. */
+  private caveDepthReached = false;
+  /** Jump-pack hover seconds consumed in the CURRENT airborne stint (refills on land). */
+  private hoverUsed = 0;
 
   readonly survival: Survival;
   readonly quest: QuestBridge;
   /** Crash-pod marker cell (= spawn column feet); the [E] salvage anchor. */
   readonly podPos: { x: number; y: number; z: number };
+  /**
+   * Wrecked Drone (GAME_DESIGN §3e/§8) — core state lives in the game layer (so
+   * repair/follow is hook-testable); the render view (main.ts, outside __TEST__)
+   * reads `drone.pos` / `drone.repaired`. Spawned a few blocks from the pod; once
+   * repaired (2 copper + 1 crystal) it eases after the player as a mobile light.
+   */
+  readonly drone: Drone;
   /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
   onRender: ((dtSeconds: number) => void) | null = null;
+  /**
+   * Optional per-fixed-sim-step updater (M4.3a entities — beetle/drone behavior).
+   * Runs once per stepSim at the fixed dt, so entity motion stays deterministic
+   * under stepFrames. Installed only outside __TEST__ (see main.ts) to keep the
+   * visual baselines byte-identical.
+   */
+  onStep: ((dtSeconds: number) => void) | null = null;
 
   constructor(
     readonly world: VoxelWorld,
@@ -77,6 +121,8 @@ export class Game {
   ) {
     this.survival = new Survival(player, inv, world);
     this.podPos = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
+    // Wrecked drone husk a few blocks from the pod (within easy [R]/[E] reach).
+    this.drone = createDrone([player.pos.x + 2, player.pos.y, player.pos.z]);
     this.quest = new QuestBridge(inv, {
       grant: (itemId, count) => {
         give(this.inv, itemId as never, count);
@@ -105,6 +151,31 @@ export class Game {
     if (this.quest.state.flags[FLAG_SALVAGED]) return false;
     this.quest.raiseFlag(FLAG_SALVAGED);
     return true;
+  }
+
+  /** Minimal has/take adapter over the player inventory for repairDrone (atomic). */
+  private droneInv(): DroneInventory {
+    return {
+      has: (itemId, n) => invCount(this.inv, itemId as never) >= n,
+      take: (itemId, n) => take(this.inv, itemId as never, n),
+    };
+  }
+
+  /**
+   * [R]/[E] interaction (GAME_DESIGN §3e/§8): repair the wrecked drone when the
+   * player is within DRONE_REPAIR_REACH of it. Delegates to the pure-core
+   * repairDrone (atomic: 2 copper + 1 crystal checked-then-consumed, idempotent
+   * once repaired). Returns true only on the call that actually repairs it (so the
+   * caller can toast / play a cue); out-of-reach or short-stock returns false and
+   * consumes nothing.
+   */
+  repairWreckedDrone(): boolean {
+    if (this.drone.repaired) return false;
+    const dx = this.player.pos.x - this.drone.pos[0];
+    const dy = this.player.pos.y - this.drone.pos[1];
+    const dz = this.player.pos.z - this.drone.pos[2];
+    if (dx * dx + dy * dy + dz * dz > DRONE_REPAIR_REACH * DRONE_REPAIR_REACH) return false;
+    return repairDrone(this.drone, this.droneInv());
   }
 
   /** Active hotbar item's tool tier; 'hand' when it is no tool (CP decision). */
@@ -157,6 +228,11 @@ export class Game {
       else if (drop.dropped !== null) this.hud.pickup(drop.dropped);
       // ch1 `mine` beat: a regolith(1) block mined to completion (GAME_DESIGN §3b).
       if (targetBlockId === REGOLITH_ID) this.quest.addCounter(COUNTER_MINED_REGOLITH);
+      // ch3 `harvest` beat: a crystal(4) mined INTO the inventory (GAME_DESIGN §3d).
+      // Only count the drop that actually landed (overflow ⇒ lost ⇒ no credit).
+      if (targetBlockId === CRYSTAL_ID && drop.overflow === 0 && drop.dropped !== null) {
+        this.quest.addCounter(COUNTER_COLLECTED_CRYSTAL);
+      }
     }
     if (mined.refused) this.hud.toast('TOOL TOO WEAK');
 
@@ -182,19 +258,52 @@ export class Game {
       }
     }
 
+    // ── Jump pack (GAME_DESIGN §7 / §12, M4.3a). The player HOVERS when they
+    // OWN a jump_pack, HOLD Space, are AIRBORNE (not a grounded jump), have
+    // energy (> 0), and still have hover budget (≤ JUMP_PACK_HOVER_SECONDS this
+    // airborne stint). Hover = hold altitude (counter gravity): we capture the
+    // pre-move feet-y and, after the core resolves the step, pin y back + zero
+    // the vertical velocity so the player neither rises nor falls. The energy
+    // drain is the survival layer's job (jumpPackWanted ⇒ ENERGY_JUMPPACK/s with
+    // its own energy>0 veto, §12), so this is purely the physics half. ──────────
+    const ownsJumpPack = has(this.inv, JUMP_PACK_ID);
+    const wantsHover = ownsJumpPack && !!step.move.jump && !this.player.onGround;
+    const hoverActive =
+      wantsHover && !this.survival.energyEmpty() && this.hoverUsed < JUMP_PACK_HOVER_SECONDS;
+    const yBeforeMove = this.player.pos.y;
+
     stepPlayer(this.player, this.world, step.move, dt);
+
+    if (hoverActive && !this.player.onGround) {
+      // Hold altitude: undo the gravity descent this step (collision-safe — the
+      // pre-move y was a valid standing/airborne cell), and kill vertical drift.
+      this.player.pos.y = yBeforeMove;
+      this.player.vel.y = 0;
+      this.hoverUsed += dt;
+    }
+    // Refill the hover budget the moment the player is back on the ground.
+    if (this.player.onGround) this.hoverUsed = 0;
+
+    // ── ch3 `descend` beat (GAME_DESIGN §3d): the first fixed step the resolved
+    // feet-y drops below CAVE_DEPTH_Y, set caveDepthReached = 1 (a latch — the
+    // counter is one-shot, so re-surfacing/re-descending never bumps it again). ─
+    if (!this.caveDepthReached && this.player.pos.y < CAVE_DEPTH_Y) {
+      this.caveDepthReached = true;
+      this.quest.addCounter(COUNTER_CAVE_DEPTH);
+    }
 
     // ── Survival (M2.3): one stepSurvival after movement so fall damage reads
     // the post-resolve onGround/pos. `mining` for energy drain = a held mine
     // that actually advanced this step (mined.progress moves only when not
-    // refused / on a real target). Jump-pack thrust is not wired (no jump_pack
-    // placement/own path yet — see survival.ts) so jumpPackWanted is false. ──
+    // refused / on a real target). `jumpPackWanted` = hover physics fired this
+    // step (M4.3a) → the survival layer drains ENERGY_JUMPPACK (§12), gated on
+    // energy>0 internally, so the drain and the physics stay in lockstep. ──────
     const miningThisStep = step.mineHeld && hit !== null && !mined.refused;
     const cleared = this.survival.step(
       {
         mining: miningThisStep,
         drillTier: equippedTier as SurvivalDrillTier,
-        jumpPackWanted: false,
+        jumpPackWanted: hoverActive,
       },
       dt,
     );
@@ -206,6 +315,17 @@ export class Game {
     const { forward, back, left, right } = step.move;
     if (forward || back || left || right) this.quest.addCounter(COUNTER_MOVE);
     this.quest.step();
+
+    // ── Wrecked Drone follow (M4.3a): once repaired, ease after the player as a
+    // mobile light. No-op while wrecked (stepDrone early-returns), so this is safe
+    // every step and is part of the always-present sim (hook-testable). ──────────
+    stepDrone(this.drone, [this.player.pos.x, this.player.pos.y, this.player.pos.z], dt);
+
+    // ── Entities (M4.3a): drive beetle behavior + sync entity render views once
+    // per fixed step at the fixed dt (deterministic under stepFrames). Installed
+    // only outside __TEST__ (main.ts), so the visual-baseline harness never runs
+    // it (the beetle render objects exist only there). ──────────────────────────
+    this.onStep?.(dt);
 
     this.hud.stepTimers();
   }
