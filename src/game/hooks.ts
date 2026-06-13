@@ -24,9 +24,14 @@ import { give, type Inventory } from '../core/player/inventory';
 import { isItemId } from '../core/items/catalog';
 import { craft } from '../core/crafting/craft';
 import { isRecipeId } from '../core/crafting/recipes';
+import { SURVIVAL, type SurvivalState } from '../core/player/stats';
+import type { DeathCache } from './survival';
 import { UNLOCKED_CHAPTER } from './chapters';
 import type { InputPartial } from './input';
 import type { Game } from './loop';
+
+/** Which survival stat `setStat` targets. */
+export type SurvivalStat = 'hp' | 'o2' | 'energy';
 
 export interface GameHooks {
   READY: boolean;
@@ -50,6 +55,18 @@ export interface GameHooks {
   renderOnce?(): void;
   /** Draw calls of the most recent render (`renderer.info.render.calls`) — M0.5 perf probe. */
   drawCalls?(): number;
+  /** Live survival state (hp/o2/energy). NOTE: respawn REPLACES the object — read fresh. */
+  survival?(): SurvivalState;
+  /** Force a stat to an exact value (clamped 0..max). Test helper (M2.4 death loop). */
+  setStat?(stat: SurvivalStat, value: number): void;
+  /** Subtract n HP (clamped ≥ 0). Convenience over setStat for damage scripts. */
+  damage?(n: number): void;
+  /** The recoverable death-drop caches (M2.3 §12 ④). Live array reference. */
+  caches?(): DeathCache[];
+  /** Use one O₂ canister (+40, clamped); returns whether one was consumed. */
+  useCanister?(): boolean;
+  /** Place a flare (60 s emissive marker at the feet); returns the voxel or null. */
+  useFlare?(): { x: number; y: number; z: number } | null;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -76,6 +93,18 @@ export function installHooks(game: Game): GameHooks {
     },
     renderOnce: () => game.renderFrame(),
     drawCalls: () => game.scene.renderer.info.render.calls,
+    survival: () => game.survival.state,
+    setStat: (stat: SurvivalStat, value: number) => {
+      const max =
+        stat === 'hp' ? SURVIVAL.HP_MAX : stat === 'o2' ? SURVIVAL.O2_MAX : SURVIVAL.ENERGY_MAX;
+      game.survival.state[stat] = Math.max(0, Math.min(max, value));
+    },
+    damage: (n: number) => {
+      game.survival.state.hp = Math.max(0, game.survival.state.hp - n);
+    },
+    caches: () => game.survival.caches,
+    useCanister: () => game.survival.useCanister(),
+    useFlare: () => game.survival.useFlare(),
   };
   window.__game = hooks;
   return hooks;
