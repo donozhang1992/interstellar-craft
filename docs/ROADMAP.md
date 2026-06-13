@@ -85,6 +85,8 @@ solvable + unsolvable-until-correct unit tests · objective HUD + decode panel b
 | 2026-06-13 | M3.1 quest engine merged (693d792, verifier PASS): pure linear state machine (advance idempotent + no-skip), ch1/ch2 chapter table, 27 tests 100% lines. ch2 predicates read flags only (decoupled). 7 transition-coverage probes |
 | 2026-06-13 | M3.2 decode+antenna merged (42ef112, verifier PASS): 3 distinct 3×3 glyphs + isSolved exact-match, validateAntenna (3 antenna atop ≥4 solid non-antenna mast), 23 tests 100% cov. 27 single-cell-flip near-miss probes. Combined main ci 48 passed |
 | 2026-06-13 | Tooling: budget-guard skill adopted (140fce6) — ccusage watchdog + kSafe wave-sizing gate; M3 core run under it (kSafe peaked 15, never below 12) |
+| 2026-06-13 | M3.3 story glue merged (1fd84df, verifier PASS): QuestBridge wiring + event counters, objective HUD, pod [E] salvage, antenna build detection, 3×3 decode panel (P/E), subtitle band, scanner highlight (gated), Observer Jelly (non-TEST). 7 quest e2e + 5/5 adversarial probes. 4 HUD baselines re-gen. Placeholder story copy; pod is invisible spawn-cell marker (no mesh) |
+| 2026-06-13 | M3.4 closeout merged (CP verified): capstone ch1→ch2 playthrough e2e (real mechanics) + objective-hud baseline (16 total). Full ci 58 passed. **M3 CLOSED — all four exit criteria evidenced** (transition coverage: tests/unit/quest; ch1→ch2 e2e: tests/e2e/ch1ch2.spec.ts; puzzle solvable/unsolvable: decode+antenna unit; objective+decode baselines). Deferred to later: visible crash-pod mesh, final story copy, Observer Jelly visual coverage, starter-kit retirement |
 
 ## M4 — Chapters 3–5 + Ending
 
