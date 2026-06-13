@@ -67,9 +67,10 @@ export function computeDeathDrop(inv: Inventory): DeathDrop {
 
 /**
  * The stats a player respawns with: full HP/O₂/Energy (§6 respawn at pod).
- * Returns a fresh object; `_dead` is accepted for symmetry/future-proofing but
- * the respawn values do not depend on it. Position reset is the game layer's job.
+ * Returns a fresh object. Respawn values do not depend on the pre-death state,
+ * so this takes no argument; the game layer simply replaces its SurvivalState
+ * with the result. Position reset is the game layer's job.
  */
-export function respawnState(_dead: SurvivalState): SurvivalState {
+export function respawnState(): SurvivalState {
   return createSurvivalState();
 }

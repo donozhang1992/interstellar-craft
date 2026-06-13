@@ -3,7 +3,6 @@
 import { describe, expect, it } from 'vitest';
 import { createInventory, give } from '../../../src/core/player/inventory';
 import { computeDeathDrop, respawnState } from '../../../src/core/player/death';
-import { createSurvivalState } from '../../../src/core/player/stats';
 
 describe('computeDeathDrop — 50% of each stack (§12 DEATH_DROP), floor rounding', () => {
   it('drops floor(count/2) of a stackable item, keeps the rest', () => {
@@ -88,17 +87,13 @@ describe('computeDeathDrop — 50% of each stack (§12 DEATH_DROP), floor roundi
 
 describe('respawnState (§6 respawn at pod with full stats)', () => {
   it('restores full hp/o2/energy to the §12 maxes', () => {
-    const s = createSurvivalState();
-    s.hp = 0;
-    s.o2 = 3;
-    s.energy = 12;
-    expect(respawnState(s)).toEqual({ hp: 100, o2: 100, energy: 100 });
+    expect(respawnState()).toEqual({ hp: 100, o2: 100, energy: 100 });
   });
 
-  it('returns a fresh object (does not alias the input)', () => {
-    const s = createSurvivalState();
-    const r = respawnState(s);
-    r.hp = 1;
-    expect(s.hp).toBe(100);
+  it('returns a fresh object each call (no shared mutable state)', () => {
+    const a = respawnState();
+    const b = respawnState();
+    a.hp = 1;
+    expect(b.hp).toBe(100);
   });
 });
