@@ -7,7 +7,11 @@ import { describe, expect, it } from 'vitest';
 import { VoxelWorld } from '../../../src/core/world/voxelWorld';
 import type { WorldDims } from '../../../src/core/world/voxelWorld';
 import { BlockId } from '../../../src/core/world/blocks';
-import { validateBeacon, validateBeaconAt, BEACON_CORE_COUNT } from '../../../src/core/quest/beacon';
+import {
+  validateBeacon,
+  validateBeaconAt,
+  BEACON_CORE_COUNT,
+} from '../../../src/core/quest/beacon';
 
 // Small hand-crafted world so scans are cheap.
 const SMALL: WorldDims = { sizeX: 16, sizeY: 32, sizeZ: 16 };
