@@ -64,8 +64,20 @@ by mining (M1's give()-hook stand-in retired).
 
 Quest state machine; objective HUD; subtitle/dialog system (trailer typography);
 Observer Jelly guide; ch1 tutorial + pod salvage; ch2 antenna + 3 decode puzzles;
-scanner. **Exit**: state machine 100% transition coverage · E2E ch1→ch2 playthrough ·
-puzzle solvable + unsolvable-until-correct unit tests.
+scanner. Design pinned in GAME_DESIGN §3a–3c (quest model, ch1/ch2 steps, decode
+puzzle). M3 decision: KEEP the M1 starter kit (salvage-grants-gear retirement
+deferred). Ch1 completion = explicit `salvaged` flag (§3 predicate fixed from the
+bogus hull-count).
+
+| # | Task | Module footprint | Order |
+|---|------|-----------------|-------|
+| 3.1 | Quest engine core (TDD): QuestState, chapter/step tables for ch1+ch2, predicates, `advance()`, flags/counters, unlock effects | `src/core/quest/engine.ts` + chapter defs, `tests/unit/quest/**` | ∥ 3.2 |
+| 3.2 | Decode puzzle core (TDD): 3×3 glyph table, `isSolved(panel, glyph)`, antenna structural validator | `src/core/quest/decode.ts`, `src/core/quest/antenna.ts`, `tests/unit/quest/**` | ∥ 3.1 |
+| 3.3 | Game glue + HUD: objective line (top-right), subtitle/dialog band (trailer type), event→flag/counter wiring, pod [E] salvage, antenna build detection, 3×3 decode panel UI, scanner unlock+highlight, Observer Jelly entity (drift+glow) | `src/game/**`, `index.html`, `src/render/**` (jelly + scanner tint), `tests/e2e/**`, HUD visual baselines | after 3.1+3.2 |
+| 3.4 | Closeout: E2E ch1→ch2 full playthrough, state-machine transition-coverage audit, objective/subtitle/jelly visual baselines | `tests/**` | last |
+
+**Exit**: state machine 100% transition coverage · E2E ch1→ch2 playthrough · puzzle
+solvable + unsolvable-until-correct unit tests · objective HUD + decode panel baselines.
 
 ## M4 — Chapters 3–5 + Ending
 

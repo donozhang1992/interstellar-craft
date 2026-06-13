@@ -32,13 +32,36 @@ explicit completion predicate that must be unit-testable.
 
 | Ch | Title | Player goal | Completion predicate | Unlocks |
 |----|-------|-------------|---------------------|---------|
-| 1 | Crash Site | Tutorial: move, mine 10 regolith, place 5 blocks, salvage pod | `inventory.has('hull', 3)` after salvage interaction | Workbench, Drill Mk1 |
+| 1 | Crash Site | Tutorial: move, mine 10 regolith, place 5 blocks, salvage pod | `flags.salvaged === true` (explicit [E] pod interaction — NOT a hull count; the M1 starter kit already stocks hull) | Workbench, Drill Mk1 |
 | 2 | The Signal | Build antenna (place 3 antenna blocks on 4-high mast), decode 3 pulses (pattern puzzle: place blocks matching displayed glyph) | 3/3 puzzles solved | Scanner, deep ores spawn |
 | 3 | Deep Veins | Descend cave, collect 12 crystal under O₂ pressure | `inventory.has('crystal', 12)` | Jump pack, crystal recipes |
 | 4 | The Beacon | Build 24-block-tall beacon tower per blueprint; structure validator checks shape | `validateBeacon(world) === true` | Fusion igniter |
 | 5 | First Contact | Charge (insert 8 crystal), ignite, launch | Ignition interaction | Ending cinematic → free mode, flight, all blocks |
 
 Free mode after credits: creative-style building, flight enabled.
+
+### 3a. Quest Engine model (M3 — canonical)
+
+Pure-core linear state machine in `src/core/quest/`. Shape:
+- `QuestState { chapter: 1..5, step: number, flags: Record<string, boolean>, counters: Record<string, number> }`.
+- Each chapter = an ordered list of **steps**; each step has `{ id, objective (English HUD line), predicate(ctx): boolean, onEnter?/onComplete? effects (unlock ids, grants) }`.
+- `ctx` (QuestContext) is a read-only view the game layer supplies each tick: `{ inv, player, world, flags, counters }`. Predicates are PURE and unit-testable; NO three.js/DOM.
+- `advance(state, ctx)`: while the current step's predicate is satisfied, fire its onComplete, move to the next step (or next chapter). Deterministic, idempotent. Chapters never skip; a step only completes via its predicate.
+- Game layer raises flags/counters from real events: `salvaged` (pod [E]), `moved`, `mined:regolith` counter, `placed` counter, `antennaBuilt`, `puzzle1/2/3Solved`, etc.
+
+**M3 decision (2026-06-13): KEEP the M1 sandbox starter kit** (drill_mk1 + ore + hull) — retiring it for an empty start + salvage-grants-gear is deferred (it would ripple into M1/M2 e2e + HUD baselines). So ch1 salvage UNLOCKS the workbench/flavor and grants a small bonus, but the player already has a drill; the tutorial value is the guided beats, not the gear gate.
+
+### 3b. Chapter 1 — Crash Site (steps)
+1. `move` — objective "Move with WASD" → `counters.moveTicks > ~30` (held movement).
+2. `mine` — "Mine 10 regolith" → `counters['mined:regolith'] >= 10`.
+3. `place` — "Place 5 blocks" → `counters.placed >= 5`.
+4. `salvage` — "Salvage the crash pod [E]" → `flags.salvaged` (pod interaction within reach). onComplete: unlock workbench, mark ch1 done → ch2.
+
+### 3c. Chapter 2 — The Signal (steps)
+1. `antenna` — "Raise the antenna (3 antenna blocks atop a 4-high mast)" → `flags.antennaBuilt`, set by a structural check: a vertical column ≥4 of any solid topped by 3 stacked `antenna(11)` blocks (validator in core, like the M4 beacon validator but simpler).
+2. `decode` — "Decode the 3 pulses" → `counters.puzzlesSolved >= 3`. Each puzzle: a 3×3 target **glyph** (boolean mask) is shown; the player reproduces it on a 3×3 decode panel (place/clear cells); solved when the panel mask == the glyph. 3 distinct glyphs. onComplete: unlock scanner. Pure-core puzzle logic in `src/core/quest/decode.ts` (glyph table + `isSolved(panel, glyph)`); the 3×3 panel UI + block placement is game-layer.
+
+Scanner (ch2 unlock): minimal M3 — highlights ore blocks within radius (a render tint / hook); full pulse/cooldown polish per §7 can come later.
 
 ## 4. Blocks (13 types)
 
