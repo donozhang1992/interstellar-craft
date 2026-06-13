@@ -57,6 +57,16 @@ const POSES = {
    *  over a thin terrain horizon — pins sky rendering with no Gargantua
    *  billboard in shot. */
   deepSpace: { x: 48.5, y: 32, z: 48.5, yaw: 2.4892, pitch: 0.25 },
+  /** o. (M2.4) Cave interior — deep inside the seed-0x7e worm-carver network
+   *  at an open pocket (feet (87,7,63): floor basalt y=6, air y=7–9, ceiling
+   *  y=10), eye-y 8.62 ≪ DIM_TOP 20 so scene.ts cave-dim has faded the fill
+   *  lights to ~the 0.18 floor — the rock reads dark and the emissive
+   *  lamp(6)/crystal(4) blocks the carver exposed pop out. yaw 1.178 faces the
+   *  richest cluster (2 lamps / 8 crystals scanned in a forward cone), pitch
+   *  −0.20 tips slightly down for stepped-wall AO. Pins the M2 cave-lighting
+   *  look (ROADMAP M2 exit "cave visual baseline"; GAME_DESIGN §9 caves /
+   *  §6 cave dim). */
+  caveInterior: { x: 87.5, y: 7, z: 63.5, yaw: 1.178, pitch: -0.2 },
 } satisfies Record<string, Pose>;
 
 /** Boot the game with the rAF clock disabled and the title overlay hidden. */
@@ -150,6 +160,20 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
   test('l. deep-space horizon — sky/nebulae away from Gargantua', async ({ page }) => {
     await shoot(page, POSES.deepSpace);
     await expect(page).toHaveScreenshot('deep-space-horizon.png');
+  });
+
+  /** o. (M2.4) Cave interior — the M2 cave-lighting look. shoot() teleports the
+   *  camera into the deep worm-carver pocket and renderOnce() runs syncCamera,
+   *  which applies scene.ts cave-dim (eye-y 8.62 ≪ DIM_TOP 20 ⇒ fill lights at
+   *  the 0.18 floor). The frame is fully deterministic (seed 0x7e terrain + pure
+   *  camera-y dim), so it baselines like every other visual shot. Pins ROADMAP
+   *  M2 exit criterion "cave visual baseline": dark rock with emissive
+   *  lamp(6)/crystal(4) blocks the carver exposed. */
+  test('o. cave interior — deep worm-carver pocket, cave-dim + emissive blocks', async ({
+    page,
+  }) => {
+    await shoot(page, POSES.caveInterior);
+    await expect(page).toHaveScreenshot('cave-interior.png');
   });
 
   /** m. (M1.5) Crafting overlay — ROADMAP M1 exit criterion "HUD visual
