@@ -33,6 +33,14 @@ import type { SurvivalDrillTier } from '../core/player/stats';
 import { give } from '../core/player/inventory';
 import { validateAntenna } from '../core/quest/antenna';
 import { Survival } from './survival';
+import {
+  createDrone,
+  repairDrone,
+  stepDrone,
+  type Drone,
+  type DroneInventory,
+} from '../core/entity/drone';
+import { take, count as invCount } from '../core/player/inventory';
 import { placeBlock, raycastFromPlayer } from './edits';
 import {
   QuestBridge,
@@ -60,6 +68,9 @@ export const POD_SALVAGE_REACH = 5;
 
 /** Jump Pack item id (GAME_DESIGN §5 equipment) — owning it enables the hover. */
 const JUMP_PACK_ID = 'jump_pack';
+
+/** Max distance (blocks) from the wrecked drone for the [R]/[E] repair interaction. */
+export const DRONE_REPAIR_REACH = 4;
 /**
  * Max continuous hover time per airborne stint (GAME_DESIGN §7: "hold-jump hover
  * ≤ 2 s"). The budget refills only on landing — you cannot chain two full hovers
@@ -83,6 +94,13 @@ export class Game {
   readonly quest: QuestBridge;
   /** Crash-pod marker cell (= spawn column feet); the [E] salvage anchor. */
   readonly podPos: { x: number; y: number; z: number };
+  /**
+   * Wrecked Drone (GAME_DESIGN §3e/§8) — core state lives in the game layer (so
+   * repair/follow is hook-testable); the render view (main.ts, outside __TEST__)
+   * reads `drone.pos` / `drone.repaired`. Spawned a few blocks from the pod; once
+   * repaired (2 copper + 1 crystal) it eases after the player as a mobile light.
+   */
+  readonly drone: Drone;
   /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
   onRender: ((dtSeconds: number) => void) | null = null;
   /**
@@ -103,6 +121,8 @@ export class Game {
   ) {
     this.survival = new Survival(player, inv, world);
     this.podPos = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
+    // Wrecked drone husk a few blocks from the pod (within easy [R]/[E] reach).
+    this.drone = createDrone([player.pos.x + 2, player.pos.y, player.pos.z]);
     this.quest = new QuestBridge(inv, {
       grant: (itemId, count) => {
         give(this.inv, itemId as never, count);
@@ -131,6 +151,31 @@ export class Game {
     if (this.quest.state.flags[FLAG_SALVAGED]) return false;
     this.quest.raiseFlag(FLAG_SALVAGED);
     return true;
+  }
+
+  /** Minimal has/take adapter over the player inventory for repairDrone (atomic). */
+  private droneInv(): DroneInventory {
+    return {
+      has: (itemId, n) => invCount(this.inv, itemId as never) >= n,
+      take: (itemId, n) => take(this.inv, itemId as never, n),
+    };
+  }
+
+  /**
+   * [R]/[E] interaction (GAME_DESIGN §3e/§8): repair the wrecked drone when the
+   * player is within DRONE_REPAIR_REACH of it. Delegates to the pure-core
+   * repairDrone (atomic: 2 copper + 1 crystal checked-then-consumed, idempotent
+   * once repaired). Returns true only on the call that actually repairs it (so the
+   * caller can toast / play a cue); out-of-reach or short-stock returns false and
+   * consumes nothing.
+   */
+  repairWreckedDrone(): boolean {
+    if (this.drone.repaired) return false;
+    const dx = this.player.pos.x - this.drone.pos[0];
+    const dy = this.player.pos.y - this.drone.pos[1];
+    const dz = this.player.pos.z - this.drone.pos[2];
+    if (dx * dx + dy * dy + dz * dz > DRONE_REPAIR_REACH * DRONE_REPAIR_REACH) return false;
+    return repairDrone(this.drone, this.droneInv());
   }
 
   /** Active hotbar item's tool tier; 'hand' when it is no tool (CP decision). */
@@ -271,9 +316,15 @@ export class Game {
     if (forward || back || left || right) this.quest.addCounter(COUNTER_MOVE);
     this.quest.step();
 
-    // ── Entities (M4.3a): drive beetle/drone behavior once per fixed step at the
-    // fixed dt, so their motion is deterministic under stepFrames. Installed only
-    // outside __TEST__ (main.ts), so the visual-baseline harness never runs it. ──
+    // ── Wrecked Drone follow (M4.3a): once repaired, ease after the player as a
+    // mobile light. No-op while wrecked (stepDrone early-returns), so this is safe
+    // every step and is part of the always-present sim (hook-testable). ──────────
+    stepDrone(this.drone, [this.player.pos.x, this.player.pos.y, this.player.pos.z], dt);
+
+    // ── Entities (M4.3a): drive beetle behavior + sync entity render views once
+    // per fixed step at the fixed dt (deterministic under stepFrames). Installed
+    // only outside __TEST__ (main.ts), so the visual-baseline harness never runs
+    // it (the beetle render objects exist only there). ──────────────────────────
     this.onStep?.(dt);
 
     this.hud.stepTimers();

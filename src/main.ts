@@ -19,6 +19,7 @@ import { DecodeOverlay } from './game/decodeUI';
 import { createObserverJelly } from './render/observerJelly';
 import { createCrystalBeetle } from './render/crystalBeetle';
 import { createBeetle, stepBeetle } from './core/entity/beetle';
+import { createWreckedDrone } from './render/wreckedDrone';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -115,6 +116,14 @@ if (!window.__TEST__) {
     return { core, view };
   });
 
+  // Wrecked Drone (GAME_DESIGN §3e/§8) — the core state lives on the game (repair
+  // + follow is hook-testable in loop.ts); here we only add the render view and
+  // sync it from game.drone. Repaired via [R] (or [E] within reach) below. The
+  // companion PointLight is added only here, outside __TEST__, so baselines stay
+  // byte-identical and the r160 point-light budget (5–60) is untouched.
+  const droneView = createWreckedDrone(game.drone.pos[0], game.drone.pos[1], game.drone.pos[2]);
+  scene.scene.add(droneView.group);
+
   game.onStep = (dt) => {
     const p = player.pos;
     const ctx = {
@@ -140,6 +149,9 @@ if (!window.__TEST__) {
       b.view.setShed(b.core.shed);
       b.view.update(dt);
     }
+    droneView.syncTo(game.drone.pos[0], game.drone.pos[1], game.drone.pos[2]);
+    droneView.setRepaired(game.drone.repaired);
+    droneView.update(dt);
   };
 }
 
@@ -185,8 +197,10 @@ decodeOverlay?.attach();
 
 // M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
 // G = flare (place a 60 s emissive lamp marker at the feet). M3.3 quest keys:
-// E = salvage the crash pod (ch1) / open decode at the antenna (ch2); P = open
-// the decode panel directly. Suppressed while an overlay is open. Edge-triggered.
+// E = salvage the crash pod (ch1) / repair the wrecked drone in reach (M4.3a) /
+// open decode at the antenna (ch2); R = repair the wrecked drone (M4.3a §3e);
+// P = open the decode panel directly. Suppressed while an overlay is open.
+// Edge-triggered.
 addEventListener('keydown', (e) => {
   if (input.uiOpen || e.repeat) return;
   if (e.code === 'KeyC') {
@@ -194,10 +208,19 @@ addEventListener('keydown', (e) => {
   } else if (e.code === 'KeyG') {
     const placed = game.survival.useFlare();
     if (placed) scene.worldMeshes.markDirtyAt(placed.x, placed.y, placed.z);
+  } else if (e.code === 'KeyR') {
+    // Repair the wrecked drone when in reach (2 copper + 1 crystal).
+    if (game.repairWreckedDrone()) hud.toast('DRONE ONLINE');
   } else if (e.code === 'KeyE') {
-    // ch1: salvage the pod within reach; ch2+: if the antenna is up, open decode.
+    // ch1: salvage the pod within reach; else repair the drone in reach; else
+    // (ch2+) if the antenna is up, open decode.
     const salvaged = game.salvagePod();
-    if (!salvaged && game.quest.state.flags.antennaBuilt) decodeOverlay?.open();
+    if (salvaged) return;
+    if (game.repairWreckedDrone()) {
+      hud.toast('DRONE ONLINE');
+      return;
+    }
+    if (game.quest.state.flags.antennaBuilt) decodeOverlay?.open();
   } else if (e.code === 'KeyP') {
     decodeOverlay?.open();
   }
