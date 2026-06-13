@@ -25,7 +25,7 @@
  */
 import { PHYS, stepPlayer, type PlayerState } from '../core/player/movement';
 import type { VoxelWorld } from '../core/world/voxelWorld';
-import { activeItem, type Inventory } from '../core/player/inventory';
+import { activeItem, has, type Inventory } from '../core/player/inventory';
 import { getItem } from '../core/items/catalog';
 import { createMiningState, stepMining, applyMiningDrop } from '../core/mining/progress';
 import type { MiningTier } from '../core/mining/model';
@@ -58,6 +58,15 @@ const CAVE_DEPTH_Y = 20;
 /** Max distance (blocks) from the crash pod for the [E] salvage interaction. */
 export const POD_SALVAGE_REACH = 5;
 
+/** Jump Pack item id (GAME_DESIGN §5 equipment) — owning it enables the hover. */
+const JUMP_PACK_ID = 'jump_pack';
+/**
+ * Max continuous hover time per airborne stint (GAME_DESIGN §7: "hold-jump hover
+ * ≤ 2 s"). The budget refills only on landing — you cannot chain two full hovers
+ * without touching ground.
+ */
+export const JUMP_PACK_HOVER_SECONDS = 2;
+
 export class Game {
   private accumulator = 0;
   private last = 0;
@@ -67,6 +76,8 @@ export class Game {
   private miningProgress = 0;
   /** ch3 `descend` latch: raised once feet y first drops below CAVE_DEPTH_Y. */
   private caveDepthReached = false;
+  /** Jump-pack hover seconds consumed in the CURRENT airborne stint (refills on land). */
+  private hoverUsed = 0;
 
   readonly survival: Survival;
   readonly quest: QuestBridge;
@@ -195,7 +206,31 @@ export class Game {
       }
     }
 
+    // ── Jump pack (GAME_DESIGN §7 / §12, M4.3a). The player HOVERS when they
+    // OWN a jump_pack, HOLD Space, are AIRBORNE (not a grounded jump), have
+    // energy (> 0), and still have hover budget (≤ JUMP_PACK_HOVER_SECONDS this
+    // airborne stint). Hover = hold altitude (counter gravity): we capture the
+    // pre-move feet-y and, after the core resolves the step, pin y back + zero
+    // the vertical velocity so the player neither rises nor falls. The energy
+    // drain is the survival layer's job (jumpPackWanted ⇒ ENERGY_JUMPPACK/s with
+    // its own energy>0 veto, §12), so this is purely the physics half. ──────────
+    const ownsJumpPack = has(this.inv, JUMP_PACK_ID);
+    const wantsHover = ownsJumpPack && !!step.move.jump && !this.player.onGround;
+    const hoverActive =
+      wantsHover && !this.survival.energyEmpty() && this.hoverUsed < JUMP_PACK_HOVER_SECONDS;
+    const yBeforeMove = this.player.pos.y;
+
     stepPlayer(this.player, this.world, step.move, dt);
+
+    if (hoverActive && !this.player.onGround) {
+      // Hold altitude: undo the gravity descent this step (collision-safe — the
+      // pre-move y was a valid standing/airborne cell), and kill vertical drift.
+      this.player.pos.y = yBeforeMove;
+      this.player.vel.y = 0;
+      this.hoverUsed += dt;
+    }
+    // Refill the hover budget the moment the player is back on the ground.
+    if (this.player.onGround) this.hoverUsed = 0;
 
     // ── ch3 `descend` beat (GAME_DESIGN §3d): the first fixed step the resolved
     // feet-y drops below CAVE_DEPTH_Y, set caveDepthReached = 1 (a latch — the
@@ -208,14 +243,15 @@ export class Game {
     // ── Survival (M2.3): one stepSurvival after movement so fall damage reads
     // the post-resolve onGround/pos. `mining` for energy drain = a held mine
     // that actually advanced this step (mined.progress moves only when not
-    // refused / on a real target). Jump-pack thrust is not wired (no jump_pack
-    // placement/own path yet — see survival.ts) so jumpPackWanted is false. ──
+    // refused / on a real target). `jumpPackWanted` = hover physics fired this
+    // step (M4.3a) → the survival layer drains ENERGY_JUMPPACK (§12), gated on
+    // energy>0 internally, so the drain and the physics stay in lockstep. ──────
     const miningThisStep = step.mineHeld && hit !== null && !mined.refused;
     const cleared = this.survival.step(
       {
         mining: miningThisStep,
         drillTier: equippedTier as SurvivalDrillTier,
-        jumpPackWanted: false,
+        jumpPackWanted: hoverActive,
       },
       dt,
     );
