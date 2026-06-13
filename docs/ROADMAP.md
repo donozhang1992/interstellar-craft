@@ -79,6 +79,13 @@ bogus hull-count).
 **Exit**: state machine 100% transition coverage · E2E ch1→ch2 playthrough · puzzle
 solvable + unsolvable-until-correct unit tests · objective HUD + decode panel baselines.
 
+### Status
+| Date | Event |
+|------|-------|
+| 2026-06-13 | M3.1 quest engine merged (693d792, verifier PASS): pure linear state machine (advance idempotent + no-skip), ch1/ch2 chapter table, 27 tests 100% lines. ch2 predicates read flags only (decoupled). 7 transition-coverage probes |
+| 2026-06-13 | M3.2 decode+antenna merged (42ef112, verifier PASS): 3 distinct 3×3 glyphs + isSolved exact-match, validateAntenna (3 antenna atop ≥4 solid non-antenna mast), 23 tests 100% cov. 27 single-cell-flip near-miss probes. Combined main ci 48 passed |
+| 2026-06-13 | Tooling: budget-guard skill adopted (140fce6) — ccusage watchdog + kSafe wave-sizing gate; M3 core run under it (kSafe peaked 15, never below 12) |
+
 ## M4 — Chapters 3–5 + Ending
 
 Jump pack; beetle + drone entities; ch3 cave expedition; ch4 beacon blueprint UI +
