@@ -78,6 +78,8 @@ export class InputController {
   private placeQueue = 0;
   /** Set by the inventory/crafting overlay while it is open (M1.4). */
   uiOpen = false;
+  private canvas: HTMLCanvasElement | null = null;
+  private overlayEl: HTMLElement | null = null;
 
   constructor(
     private readonly look: LookState,
@@ -88,6 +90,8 @@ export class InputController {
 
   /** Wire all DOM listeners (prototype event section, verbatim semantics). */
   attach({ canvas, overlay }: InputDomTargets): void {
+    this.canvas = canvas;
+    this.overlayEl = overlay;
     addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
       // KeyF fly toggle — EDGE-triggered: ignore OS auto-repeat (M0.2b contract)
@@ -103,15 +107,11 @@ export class InputController {
       this.selectSlot((this.currentSlot() + dir + this.slotCount) % this.slotCount);
     });
 
-    const requestLock = () => {
-      if (!this.uiOpen) canvas.requestPointerLock();
-    };
-    overlay?.addEventListener('click', requestLock);
-    canvas.addEventListener('click', requestLock);
+    overlay?.addEventListener('click', () => this.requestLock());
+    canvas.addEventListener('click', () => this.requestLock());
     document.addEventListener('pointerlockchange', () => {
-      const locked = document.pointerLockElement === canvas;
-      overlay?.classList.toggle('hidden', locked);
-      if (!locked) this.leftDown = false; // lock lost mid-hold ⇒ stop mining
+      if (document.pointerLockElement !== canvas) this.leftDown = false; // lock lost mid-hold ⇒ stop mining
+      this.syncTitleOverlay();
     });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
@@ -130,6 +130,32 @@ export class InputController {
       if (e.button === 0) this.leftDown = false;
     });
     addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  /**
+   * Title overlay (#overlay) visibility — single source of truth. It is hidden
+   * whenever the player is in play (pointer locked) OR has the inventory/crafting
+   * overlay open. The latter is the M1.4 fix: opening Tab releases pointer lock,
+   * and the title screen sits at a higher z-index than the crafting UI, so a
+   * naive "show title whenever unlocked" re-covered the crafting panel and made
+   * it unreachable. Called on every pointerlockchange and on every overlay toggle.
+   */
+  syncTitleOverlay(): void {
+    const locked = !!this.canvas && document.pointerLockElement === this.canvas;
+    this.overlayEl?.classList.toggle('hidden', locked || this.uiOpen);
+  }
+
+  /**
+   * Re-acquire pointer lock. Call only from a user-gesture handler (click / the
+   * Tab/Esc keydown that closes the overlay). No-op while the overlay is open.
+   * Tolerates headless contexts where requestPointerLock rejects.
+   */
+  requestLock(): void {
+    if (this.uiOpen || !this.canvas) return;
+    const r = this.canvas.requestPointerLock() as unknown;
+    if (r && typeof (r as Promise<void>).catch === 'function') {
+      (r as Promise<void>).catch(() => {}); // headless / unfocused — ignore
+    }
   }
 
   /** Programmatic input (test hooks). */

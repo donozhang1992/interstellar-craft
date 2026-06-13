@@ -316,6 +316,25 @@ test('Tab opens the inventory/crafting overlay, pauses the sim; Esc closes', asy
   expect(moved).toBeLessThan(-1);
 });
 
+test('opening Tab hides the title screen instead of popping it over crafting (regression)', async ({
+  page,
+}) => {
+  // Bug: opening the crafting overlay called exitPointerLock, and the unlock
+  // handler re-revealed the #overlay title screen — which sits ABOVE #invcraft
+  // (z-index 20 vs 15) — making the crafting UI visible-but-unclickable. The fix
+  // keeps the title hidden whenever the crafting overlay is open.
+  await page.evaluate(pageSetupCorridor);
+  // Headless never pointer-locks, so the title screen is showing at boot.
+  await expect(page.locator('#overlay')).not.toHaveClass(/hidden/);
+
+  await page.keyboard.press('Tab');
+  await expect(page.locator('#invcraft')).toHaveClass(/open/);
+  await expect(page.locator('#overlay')).toHaveClass(/hidden/); // title hidden ⇒ crafting reachable
+
+  await page.keyboard.press('Tab'); // closes cleanly
+  await expect(page.locator('#invcraft')).not.toHaveClass(/open/);
+});
+
 test('overlay CRAFT button crafts and updates the grid live', async ({ page }) => {
   // Headless has no pointer lock, so the title overlay never auto-hides and
   // would swallow the button click — dismiss it via the DOM (same as the
