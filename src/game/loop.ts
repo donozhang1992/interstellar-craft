@@ -32,6 +32,7 @@ import type { MiningTier } from '../core/mining/model';
 import type { SurvivalDrillTier } from '../core/player/stats';
 import { give } from '../core/player/inventory';
 import { validateAntenna } from '../core/quest/antenna';
+import { validateBeacon } from '../core/quest/beacon';
 import { Survival } from './survival';
 import {
   createDrone,
@@ -49,8 +50,11 @@ import {
   COUNTER_PLACED,
   COUNTER_CAVE_DEPTH,
   COUNTER_COLLECTED_CRYSTAL,
+  COUNTER_BEACON_CHARGE,
   FLAG_SALVAGED,
   FLAG_ANTENNA_BUILT,
+  FLAG_BEACON_VALID,
+  FLAG_IGNITED,
 } from './quest';
 import type { GameScene } from './scene';
 import type { InputController } from './input';
@@ -65,6 +69,13 @@ const CAVE_DEPTH_Y = 20;
 
 /** Max distance (blocks) from the crash pod for the [E] salvage interaction. */
 export const POD_SALVAGE_REACH = 5;
+
+/** Max XZ distance (blocks) from the beacon column for the ch5 [E] charge/ignite. */
+export const BEACON_INTERACT_REACH = 6;
+/** Crystal block id (GAME_DESIGN §4) consumed per beacon-charge insert (ch5). */
+const CRYSTAL_ITEM = 'block:4';
+/** ch5 charge cap (GAME_DESIGN §3d): 8 crystal fully charges the beacon. */
+export const BEACON_CHARGE_MAX = 8;
 
 /** Jump Pack item id (GAME_DESIGN §5 equipment) — owning it enables the hover. */
 const JUMP_PACK_ID = 'jump_pack';
@@ -89,6 +100,12 @@ export class Game {
   private caveDepthReached = false;
   /** Jump-pack hover seconds consumed in the CURRENT airborne stint (refills on land). */
   private hoverUsed = 0;
+  /**
+   * The (x,z) column of the valid beacon, recorded when ch4 `beaconValid` first
+   * latches. The ch5 charge/ignite [E] interactions require the player to be
+   * within BEACON_INTERACT_REACH of this column. Null until a beacon is built.
+   */
+  beaconPos: { x: number; z: number } | null = null;
 
   readonly survival: Survival;
   readonly quest: QuestBridge;
@@ -101,8 +118,26 @@ export class Game {
    * repaired (2 copper + 1 crystal) it eases after the player as a mobile light.
    */
   readonly drone: Drone;
+  /**
+   * True once ch5 free_mode unlocked: creative-style play (flight via the prototype
+   * KeyF toggle — already ungated — plus the "all blocks" creative kit). Read by
+   * the HUD / tests; flipped by enableFreeMode() off the free_mode unlock.
+   */
+  freeMode = false;
+  /**
+   * One-shot game-layer hook fired the instant the beacon ignites (ch5). main.ts
+   * installs it (outside __TEST__) to play the ending cinematic; left null under
+   * __TEST__ so the visual baselines never animate. Called exactly once.
+   */
+  onIgnite: (() => void) | null = null;
   /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
   onRender: ((dtSeconds: number) => void) | null = null;
+  /**
+   * Optional per-rendered-frame DOM hint refresher (M4.3b beacon blueprint panel).
+   * Pure DOM, no clock — installed only outside __TEST__ (main.ts) so the visual
+   * baselines, which never reach ch4, render byte-identically without it.
+   */
+  onBlueprint: (() => void) | null = null;
   /**
    * Optional per-fixed-sim-step updater (M4.3a entities — beetle/drone behavior).
    * Runs once per stepSim at the fixed dt, so entity motion stays deterministic
@@ -128,7 +163,18 @@ export class Game {
         give(this.inv, itemId as never, count);
       },
       onUnlock: (id) => {
-        this.hud.toast(id === 'workbench' ? 'WORKBENCH UNLOCKED' : 'SCANNER UNLOCKED');
+        const TOASTS: Record<string, string> = {
+          workbench: 'WORKBENCH UNLOCKED',
+          scanner: 'SCANNER UNLOCKED',
+          fusion_igniter: 'FUSION IGNITER UNLOCKED',
+          free_mode: 'FREE MODE UNLOCKED',
+        };
+        this.hud.toast(TOASTS[id] ?? `${id.toUpperCase()} UNLOCKED`);
+        // ch5 free_mode (M4.3b): formally bless free-mode flight (the prototype
+        // fly toggle is already ungated, GAME_DESIGN §7 "Flight Core") and grant
+        // a creative kit of every placeable block ("all blocks"). The ending
+        // cinematic itself is played by the game layer (main.ts) off `ignited`.
+        if (id === 'free_mode') this.enableFreeMode();
       },
       onTransition: (objective) => {
         this.hud.setObjective(objective);
@@ -151,6 +197,64 @@ export class Game {
     if (this.quest.state.flags[FLAG_SALVAGED]) return false;
     this.quest.raiseFlag(FLAG_SALVAGED);
     return true;
+  }
+
+  /** True when the player is within XZ reach of the recorded beacon column. */
+  private nearBeacon(): boolean {
+    if (!this.beaconPos) return false;
+    const dx = this.player.pos.x - (this.beaconPos.x + 0.5);
+    const dz = this.player.pos.z - (this.beaconPos.z + 0.5);
+    return dx * dx + dz * dz <= BEACON_INTERACT_REACH * BEACON_INTERACT_REACH;
+  }
+
+  /** Beacon charge so far (0..BEACON_CHARGE_MAX) — for the HUD / tests. */
+  beaconCharge(): number {
+    return this.quest.state.counters[COUNTER_BEACON_CHARGE] ?? 0;
+  }
+
+  /**
+   * ch5 `charge` interaction ([E] at the beacon): if a valid beacon exists, the
+   * player is in reach, the charge is below the cap, and the inventory holds at
+   * least 1 crystal(4), consume exactly 1 crystal and bump `beaconCharge`.
+   * Returns true only on the call that actually inserts (so the caller can cue).
+   */
+  chargeBeacon(): boolean {
+    if (!this.quest.state.flags[FLAG_BEACON_VALID]) return false;
+    if (!this.nearBeacon()) return false;
+    if (this.beaconCharge() >= BEACON_CHARGE_MAX) return false;
+    if (take(this.inv, CRYSTAL_ITEM as never, 1) !== 1) return false;
+    this.quest.addCounter(COUNTER_BEACON_CHARGE);
+    return true;
+  }
+
+  /**
+   * ch5 `ignite` interaction ([E] once charged): if the beacon is fully charged
+   * (>= BEACON_CHARGE_MAX) and the player is in reach, raise the `ignited` flag.
+   * Idempotent. Returns true only on the call that actually ignites.
+   */
+  igniteBeacon(): boolean {
+    if (this.quest.state.flags[FLAG_IGNITED]) return false;
+    if (!this.quest.state.flags[FLAG_BEACON_VALID]) return false;
+    if (!this.nearBeacon()) return false;
+    if (this.beaconCharge() < BEACON_CHARGE_MAX) return false;
+    this.quest.raiseFlag(FLAG_IGNITED);
+    // Fire the ending-cinematic hook immediately (main.ts installs it outside
+    // __TEST__). The free_mode unlock + enableFreeMode() follow on the next
+    // quest step() (advance over the satisfied `ignite` predicate).
+    this.onIgnite?.();
+    return true;
+  }
+
+  /**
+   * Free-mode enable (ch5 free_mode unlock, GAME_DESIGN §3f/§7). Idempotent:
+   * flips `freeMode` and grants the creative "all blocks" kit (1× of every
+   * placeable block id 1..13) once. Flight is the prototype KeyF toggle, already
+   * ungated, so there is nothing to unblock there — free-mode just blesses it.
+   */
+  enableFreeMode(): void {
+    if (this.freeMode) return;
+    this.freeMode = true;
+    for (let id = 1; id <= 13; id++) give(this.inv, `block:${id}` as never, 1);
   }
 
   /** Minimal has/take adapter over the player inventory for repairDrone (atomic). */
@@ -190,16 +294,10 @@ export class Game {
   stepSim(dt: number): void {
     const step = this.input.consumeStep();
 
-    // Energy gate (M2.1 contract, game layer): with energy exhausted the drill
-    // falls back to hand-tier mining. Read the survival state from the PREVIOUS
-    // step (stepSurvival runs after movement below), so the gate reacts one step
-    // after energy hits 0 — fine at 60 Hz, and keeps a single read point.
     const equippedTier = this.activeToolTier();
     const energyEmpty = this.survival.energyEmpty();
     const effectiveTier: MiningTier = energyEmpty ? 'hand' : equippedTier;
 
-    // ── Hold-to-mine (GAME_DESIGN §4): re-raycast every held step; the core
-    // state machine owns restart-on-target-change / release semantics. ──────
     let targetKey: string | null = null;
     let targetBlockId = 0;
     let hit = null;
@@ -222,22 +320,16 @@ export class Game {
       const { x, y, z } = hit.hit;
       this.world.setBlock(x, y, z, 0);
       this.scene.worldMeshes.markDirtyAt(x, y, z);
-      // Full inventory: the block still breaks, the drop is LOST (CP decision).
       const drop = applyMiningDrop(this.inv, targetBlockId);
       if (drop.overflow > 0) this.hud.toast('INVENTORY FULL');
       else if (drop.dropped !== null) this.hud.pickup(drop.dropped);
-      // ch1 `mine` beat: a regolith(1) block mined to completion (GAME_DESIGN §3b).
       if (targetBlockId === REGOLITH_ID) this.quest.addCounter(COUNTER_MINED_REGOLITH);
-      // ch3 `harvest` beat: a crystal(4) mined INTO the inventory (GAME_DESIGN §3d).
-      // Only count the drop that actually landed (overflow ⇒ lost ⇒ no credit).
       if (targetBlockId === CRYSTAL_ID && drop.overflow === 0 && drop.dropped !== null) {
         this.quest.addCounter(COUNTER_COLLECTED_CRYSTAL);
       }
     }
     if (mined.refused) this.hud.toast('TOOL TOO WEAK');
 
-    // ── Place from inventory: active slot must hold a block item; success
-    // consumes exactly 1 from THAT slot. Tools/empty/insufficient → no-op. ──
     for (let i = 0; i < step.placeClicks; i++) {
       const s = activeItem(this.inv);
       if (!s) continue;
@@ -248,24 +340,20 @@ export class Game {
         s.count--;
         if (s.count === 0) this.inv.slots[this.inv.activeHotbarSlot] = null;
         this.scene.worldMeshes.markDirtyAt(edited.x, edited.y, edited.z);
-        // ch1 `place` beat (any block, GAME_DESIGN §3b).
         this.quest.addCounter(COUNTER_PLACED);
-        // ch2 `antenna` beat: re-check the structural validator after every
-        // placement; once a valid 3-stack-on-4-mast exists, raise the flag.
         if (!this.quest.state.flags[FLAG_ANTENNA_BUILT] && validateAntenna(this.world)) {
           this.quest.raiseFlag(FLAG_ANTENNA_BUILT);
+        }
+        // ch4 `beacon` beat (M4.3b): re-check the beacon validator after every
+        // placement; once a valid launchpad->6-core->antenna assembly exists,
+        // raise the flag + record the beacon column for the ch5 [E] interaction.
+        if (!this.quest.state.flags[FLAG_BEACON_VALID] && validateBeacon(this.world)) {
+          this.quest.raiseFlag(FLAG_BEACON_VALID);
+          this.beaconPos = { x: edited.x, z: edited.z };
         }
       }
     }
 
-    // ── Jump pack (GAME_DESIGN §7 / §12, M4.3a). The player HOVERS when they
-    // OWN a jump_pack, HOLD Space, are AIRBORNE (not a grounded jump), have
-    // energy (> 0), and still have hover budget (≤ JUMP_PACK_HOVER_SECONDS this
-    // airborne stint). Hover = hold altitude (counter gravity): we capture the
-    // pre-move feet-y and, after the core resolves the step, pin y back + zero
-    // the vertical velocity so the player neither rises nor falls. The energy
-    // drain is the survival layer's job (jumpPackWanted ⇒ ENERGY_JUMPPACK/s with
-    // its own energy>0 veto, §12), so this is purely the physics half. ──────────
     const ownsJumpPack = has(this.inv, JUMP_PACK_ID);
     const wantsHover = ownsJumpPack && !!step.move.jump && !this.player.onGround;
     const hoverActive =
@@ -275,29 +363,17 @@ export class Game {
     stepPlayer(this.player, this.world, step.move, dt);
 
     if (hoverActive && !this.player.onGround) {
-      // Hold altitude: undo the gravity descent this step (collision-safe — the
-      // pre-move y was a valid standing/airborne cell), and kill vertical drift.
       this.player.pos.y = yBeforeMove;
       this.player.vel.y = 0;
       this.hoverUsed += dt;
     }
-    // Refill the hover budget the moment the player is back on the ground.
     if (this.player.onGround) this.hoverUsed = 0;
 
-    // ── ch3 `descend` beat (GAME_DESIGN §3d): the first fixed step the resolved
-    // feet-y drops below CAVE_DEPTH_Y, set caveDepthReached = 1 (a latch — the
-    // counter is one-shot, so re-surfacing/re-descending never bumps it again). ─
     if (!this.caveDepthReached && this.player.pos.y < CAVE_DEPTH_Y) {
       this.caveDepthReached = true;
       this.quest.addCounter(COUNTER_CAVE_DEPTH);
     }
 
-    // ── Survival (M2.3): one stepSurvival after movement so fall damage reads
-    // the post-resolve onGround/pos. `mining` for energy drain = a held mine
-    // that actually advanced this step (mined.progress moves only when not
-    // refused / on a real target). `jumpPackWanted` = hover physics fired this
-    // step (M4.3a) → the survival layer drains ENERGY_JUMPPACK (§12), gated on
-    // energy>0 internally, so the drain and the physics stay in lockstep. ──────
     const miningThisStep = step.mineHeld && hit !== null && !mined.refused;
     const cleared = this.survival.step(
       {
@@ -309,22 +385,12 @@ export class Game {
     );
     for (const c of cleared) this.scene.worldMeshes.markDirtyAt(c.x, c.y, c.z);
 
-    // ── Quest (M3.3): ch1 `move` beat — count a tick for every stepped frame
-    // a directional key is held (GAME_DESIGN §3b "held movement"). Then advance
-    // the engine once over the mirrored flags/counters + live inventory. ──────
     const { forward, back, left, right } = step.move;
     if (forward || back || left || right) this.quest.addCounter(COUNTER_MOVE);
     this.quest.step();
 
-    // ── Wrecked Drone follow (M4.3a): once repaired, ease after the player as a
-    // mobile light. No-op while wrecked (stepDrone early-returns), so this is safe
-    // every step and is part of the always-present sim (hook-testable). ──────────
     stepDrone(this.drone, [this.player.pos.x, this.player.pos.y, this.player.pos.z], dt);
 
-    // ── Entities (M4.3a): drive beetle behavior + sync entity render views once
-    // per fixed step at the fixed dt (deterministic under stepFrames). Installed
-    // only outside __TEST__ (main.ts), so the visual-baseline harness never runs
-    // it (the beetle render objects exist only there). ──────────────────────────
     this.onStep?.(dt);
 
     this.hud.stepTimers();
@@ -335,22 +401,20 @@ export class Game {
     this.scene.worldMeshes.rebuildDirty();
     this.scene.syncCamera(this.player);
     this.scene.updateHighlight(raycastFromPlayer(this.world, this.player));
-    // Scanner ore highlight (ch2 unlock): enable + refresh near the player once
-    // the quest grants it. Disabled (invisible) until then — no render change.
     if (this.quest.scannerUnlocked) {
       this.scene.scannerHighlight.setEnabled(true);
       const p = this.player.pos;
       this.scene.scannerHighlight.refresh(this.world, p.x, p.y, p.z);
     }
     this.scene.blackHole.update(this.scene.camera);
-    // Visual-only per-frame updater (Observer Jelly). Fixed dt so it stays
-    // deterministic under stepFrames (one render = one fixed tick of drift).
     this.onRender?.(PHYS.FIXED_DT);
     this.scene.render();
     this.hud.setProgress(this.miningProgress);
     this.hud.setSurvival(this.survival.state);
-    this.hud.setObjective(this.quest.objective()); // §10 top-right, live each frame
+    this.hud.setObjective(this.quest.objective());
     this.hud.refresh();
+    // Beacon blueprint DOM hint (M4.3b ch4) — pure DOM, tracks the quest chapter.
+    this.onBlueprint?.();
   }
 
   /**
@@ -367,12 +431,12 @@ export class Game {
     this.last = performance.now();
     const frame = (now: number): void => {
       requestAnimationFrame(frame);
-      const delta = Math.min((now - this.last) / 1000, 0.05); // prototype clamp
+      const delta = Math.min((now - this.last) / 1000, 0.05);
       this.last = now;
-      if (window.__TEST__) return; // §3: stepFrames is the only clock in tests
+      if (window.__TEST__) return;
       if (this.paused) {
-        this.accumulator = 0; // drained: unpausing must not burst-step
-        this.renderFrame(); // keep rendering (overlay sits over a live frame)
+        this.accumulator = 0;
+        this.renderFrame();
         return;
       }
       this.accumulator += delta;

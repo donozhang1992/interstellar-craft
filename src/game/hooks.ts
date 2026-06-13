@@ -80,6 +80,20 @@ export interface GameHooks {
   drone?(): { pos: [number, number, number]; repaired: boolean };
   /** Attempt to repair the wrecked drone in reach (2 copper + 1 crystal). M4.3a. */
   repairDrone?(): boolean;
+  /** ch5 [E] charge: insert 1 crystal into the beacon in reach. Returns success. M4.3b. */
+  chargeBeacon?(): boolean;
+  /** ch5 [E] ignite: ignite the fully-charged beacon in reach. Returns success. M4.3b. */
+  igniteBeacon?(): boolean;
+  /** Current beacon charge 0..8 (ctx.counters.beaconCharge). M4.3b. */
+  beaconCharge?(): number;
+  /** True once ch5 free_mode unlocked (creative kit + flight blessing). M4.3b. */
+  freeMode?(): boolean;
+  /** Manually fire the ending cinematic (skip-testing) — installed by main.ts. M4.3b. */
+  playEnding?(): void;
+  /** Ending-sequence state, or null if the controller is not installed. M4.3b. */
+  ending?(): { active: boolean; done: boolean } | null;
+  /** Skip/dismiss the ending cinematic if playing — installed by main.ts. M4.3b. */
+  skipEnding?(): void;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -127,6 +141,12 @@ export function installHooks(game: Game): GameHooks {
       repaired: game.drone.repaired,
     }),
     repairDrone: () => game.repairWreckedDrone(),
+    chargeBeacon: () => game.chargeBeacon(),
+    igniteBeacon: () => game.igniteBeacon(),
+    beaconCharge: () => game.beaconCharge(),
+    freeMode: () => game.freeMode,
+    // playEnding / ending / skipEnding are installed by main.ts (outside __TEST__)
+    // when the ending controller exists; left undefined under the baseline harness.
   };
   window.__game = hooks;
   return hooks;

@@ -246,6 +246,25 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
     for (const c of [1, 4, 7]) await page.locator(`#decode-panel .cell[data-cell="${c}"]`).click();
     await expect(page).toHaveScreenshot('decode-panel.png');
   });
+
+  /** r. (M4.3b) Ending cinematic — the sequel-hook framing (alien on the green
+   *  world, amber eyes) ported from the trailer (§3f). Deterministic under
+   *  __TEST__: createEndingCinematic.play() renders ONE representative still
+   *  (t = T_REPRESENTATIVE, stepped — no wall-clock) into the shared renderer and
+   *  opens the letterboxed #ending caption overlay; nothing renders the game scene
+   *  after, so the canvas holds the alien frame. Pins the ending look + the
+   *  sequel-hook caption band. */
+  test('r. ending cinematic — alien-world sequel-hook still (amber eyes)', async ({ page }) => {
+    await page.evaluate(() => {
+      const g = window.__game!;
+      // Fire the ending directly via the hook (no need to play through ch5 here —
+      // the cinematic frame is independent of the quest state). play() renders the
+      // representative still under __TEST__ and opens the caption overlay.
+      g.playEnding!();
+    });
+    await expect(page.locator('#ending')).toHaveClass(/open/);
+    await expect(page).toHaveScreenshot('ending-sequel-hook.png');
+  });
 });
 
 test.describe('static demo pages (render once, READY-gated)', () => {

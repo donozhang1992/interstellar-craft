@@ -16,10 +16,12 @@ import { createGameScene } from './game/scene';
 import { findSpawn } from './game/spawn';
 import { installHooks } from './game/hooks';
 import { DecodeOverlay } from './game/decodeUI';
+import { BeaconBlueprint } from './game/beaconBlueprint';
 import { createObserverJelly } from './render/observerJelly';
 import { createCrystalBeetle } from './render/crystalBeetle';
 import { createBeetle, stepBeetle } from './core/entity/beetle';
 import { createWreckedDrone } from './render/wreckedDrone';
+import { createEndingCinematic } from './render/ending';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -195,13 +197,37 @@ const decodeOverlay =
     : null;
 decodeOverlay?.attach();
 
+// Beacon blueprint panel (M4.3b ch4) — a passive build hint that auto-shows during
+// ch4 and toggles with [B]. Wired here so the [B] key handler below can reach it,
+// and refreshed each rendered frame (game.onBlueprint) to track the quest chapter.
+const beaconBlueprintRoot = document.getElementById('beacon-blueprint');
+const beaconBlueprint = beaconBlueprintRoot
+  ? new BeaconBlueprint(game.quest, beaconBlueprintRoot)
+  : null;
+if (beaconBlueprint) game.onBlueprint = () => beaconBlueprint.refresh();
+
+// Ending cinematic (M4.3b §3f) — a short, skippable, deterministic in-engine beat
+// (the alien on the green world receiving the signal). Installed only outside
+// __TEST__ (it owns its own offscreen scene/overlay); under __TEST__ the e2e drives
+// it through the hooks installed below. Fired off the beacon ignition.
+const endingRoot = document.getElementById('ending');
+const ending = endingRoot ? createEndingCinematic(scene.renderer, endingRoot) : null;
+if (ending) {
+  game.onIgnite = () => ending.play();
+}
+
 // M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
 // G = flare (place a 60 s emissive lamp marker at the feet). M3.3 quest keys:
 // E = salvage the crash pod (ch1) / repair the wrecked drone in reach (M4.3a) /
-// open decode at the antenna (ch2); R = repair the wrecked drone (M4.3a §3e);
-// P = open the decode panel directly. Suppressed while an overlay is open.
-// Edge-triggered.
+// charge+ignite the beacon (ch5) / open decode at the antenna (ch2); R = repair
+// the wrecked drone (M4.3a §3e); P = open the decode panel directly; B = toggle
+// the beacon blueprint (ch4). Suppressed while an overlay is open. Edge-triggered.
 addEventListener('keydown', (e) => {
+  // The ending cinematic swallows any key as a SKIP while it is playing.
+  if (ending?.isPlaying) {
+    ending.skip();
+    return;
+  }
   if (input.uiOpen || e.repeat) return;
   if (e.code === 'KeyC') {
     game.survival.useCanister();
@@ -213,14 +239,26 @@ addEventListener('keydown', (e) => {
     if (game.repairWreckedDrone()) hud.toast('DRONE ONLINE');
   } else if (e.code === 'KeyE') {
     // ch1: salvage the pod within reach; else repair the drone in reach; else
-    // (ch2+) if the antenna is up, open decode.
+    // (ch5) charge/ignite the beacon in reach; else (ch2+) open decode.
     const salvaged = game.salvagePod();
     if (salvaged) return;
     if (game.repairWreckedDrone()) {
       hud.toast('DRONE ONLINE');
       return;
     }
+    // ch5 First Contact: ignite once charged, else insert crystal (GAME_DESIGN §3d).
+    if (game.igniteBeacon()) {
+      hud.toast('IGNITION');
+      return;
+    }
+    if (game.chargeBeacon()) {
+      hud.toast(`BEACON ${game.beaconCharge()}/8`);
+      return;
+    }
     if (game.quest.state.flags.antennaBuilt) decodeOverlay?.open();
+  } else if (e.code === 'KeyB') {
+    // ch4: toggle the beacon blueprint panel (passive build hint).
+    beaconBlueprint?.toggle();
   } else if (e.code === 'KeyP') {
     decodeOverlay?.open();
   }
@@ -247,7 +285,15 @@ scene.blackHole.renderRT();
 game.renderFrame(); // first render — READY gates on this (TECH_SPEC §3)
 
 if (import.meta.env.DEV || import.meta.env.VITE_TEST_HOOKS === '1') {
-  installHooks(game).READY = true;
+  const hooks = installHooks(game);
+  // M4.3b ending-cinematic hooks (installed here so the e2e can trigger/inspect/
+  // skip the ending deterministically). The controller renders a single stepped
+  // representative frame under __TEST__ (createEndingCinematic), so the ending
+  // baseline is reproducible. With no #ending DOM these stay no-ops.
+  hooks.playEnding = () => ending?.play();
+  hooks.skipEnding = () => ending?.skip();
+  hooks.ending = () => (ending ? { active: ending.isPlaying, done: ending.isDone } : null);
+  hooks.READY = true;
 }
 window.READY = true;
 
