@@ -19,6 +19,7 @@ import * as THREE from 'three';
 import { BH_DIR, createBlackHole, type BlackHole } from '../render/blackhole';
 import { createNebulae, createStars } from '../render/sky';
 import { createBlockMaterials } from '../render/textures/blockTextures';
+import { createScannerHighlight, type ScannerHighlight } from '../render/scannerHighlight';
 import { PHYS, type PlayerState } from '../core/player/movement';
 import type { VoxelWorld } from '../core/world/voxelWorld';
 import type { RaycastResult } from '../core/world/raycast';
@@ -30,6 +31,8 @@ export interface GameScene {
   camera: THREE.PerspectiveCamera;
   blackHole: BlackHole;
   worldMeshes: WorldMeshes;
+  /** Scanner ore-highlight effect (ch2 unlock; invisible until enabled). */
+  scannerHighlight: ScannerHighlight;
   /** Move the camera to the player eye + view angles (prototype loop). */
   syncCamera(player: PlayerState): void;
   /** Show/hide the wire highlight box on the targeted block (prototype loop). */
@@ -78,6 +81,11 @@ export function createGameScene(world: VoxelWorld, mount: HTMLElement): GameScen
   const worldMeshes = new WorldMeshes(world, scene, createBlockMaterials());
   worldMeshes.buildAll();
 
+  // ---- scanner ore highlight (ch2 unlock) — added disabled+invisible, so the
+  // scene render output is byte-identical until the player unlocks the scanner.
+  const scannerHighlight = createScannerHighlight();
+  scene.add(scannerHighlight.group);
+
   // ---- targeted-block highlight (prototype wire box) ----
   const highlight = new THREE.LineSegments(
     new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)),
@@ -92,6 +100,7 @@ export function createGameScene(world: VoxelWorld, mount: HTMLElement): GameScen
     camera,
     blackHole,
     worldMeshes,
+    scannerHighlight,
     syncCamera(player: PlayerState): void {
       camera.position.set(player.pos.x, player.pos.y + PHYS.EYE_HEIGHT, player.pos.z);
       camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');

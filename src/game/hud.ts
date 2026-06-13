@@ -25,6 +25,24 @@ import {
 /** Transient UI lifetimes in fixed sim steps (1/60 s each). */
 const TOAST_STEPS = 90; // 1.5 s
 const NAME_STEPS = 120; // 2 s
+/** Story-beat subtitle band lifetime (GAME_DESIGN §10) — ~5 s, stepped. */
+const SUBTITLE_STEPS = 300; // 5 s
+
+/**
+ * Short story-beat flavor keyed by the quest objective string (the bridge emits
+ * the new objective on each chapter/step transition). Brief, English, trailer
+ * tone. Falls back to the objective itself for any unmapped beat.
+ */
+const SUBTITLES: Readonly<Record<string, string>> = {
+  'Move with WASD': 'You wake in the wreckage. The black hole hangs overhead, silent.',
+  'Mine 10 regolith': 'The regolith is soft. Strip it back — you need raw material.',
+  'Place 5 blocks': 'Shelter first. Stack what you mine; the cold does not wait.',
+  'Salvage the crash pod [E]': 'The pod still hums. Pry it open — salvage what survived.',
+  'Raise the antenna (3 antenna blocks atop a 4-high mast)':
+    'A pulse repeats from a green world. Raise a mast; answer the sky.',
+  'Decode the 3 pulses': 'Three glyphs, over and over. Match them. Speak back.',
+  'All objectives complete': 'The signal is sent. Somewhere, amber eyes turn upward.',
+};
 
 /** Short glyph for non-block items (tools get their tier, others initials). */
 function itemGlyph(itemId: ItemId): string {
@@ -89,6 +107,10 @@ export interface HudElements {
   hpBar?: StatBar | null;
   o2Bar?: StatBar | null;
   energyBar?: StatBar | null;
+  /** Quest objective line (top-right, §10) — one line, updated each frame. */
+  objective?: HTMLElement | null;
+  /** Story-beat subtitle band (bottom-center, §10) — transient, stepped fade. */
+  subtitle?: HTMLElement | null;
 }
 
 /** A snapshot of the three survival numbers the HUD renders (0..100 each). */
@@ -113,6 +135,13 @@ export class Hud {
   private survival: SurvivalView = { hp: 100, o2: 100, energy: 100 };
   /** Last written "hp:o2:o2low" signature to skip per-frame bar DOM churn. */
   private barSig = '';
+  /** Current quest objective line (top-right). */
+  private objectiveText = '';
+  /** Last written objective text (skip DOM churn). */
+  private objectiveSig = '\0';
+  /** Subtitle band text + remaining stepped lifetime. */
+  private subtitleText = '';
+  private subtitleTimer = 0;
 
   constructor(
     private readonly inv: Inventory,
@@ -163,10 +192,26 @@ export class Hud {
     this.survival = s;
   }
 
+  /** Set the quest objective line (top-right, §10) — called each frame. */
+  setObjective(text: string): void {
+    this.objectiveText = text;
+  }
+
+  /**
+   * Show a story-beat subtitle (bottom-center band, §10). The bridge calls this
+   * on each chapter/step transition; the text is the objective key mapped to its
+   * flavor line (SUBTITLES), falling back to the objective itself. Stepped fade.
+   */
+  showSubtitle(objective: string): void {
+    this.subtitleText = SUBTITLES[objective] ?? objective;
+    this.subtitleTimer = SUBTITLE_STEPS;
+  }
+
   /** Advance transient timers by one fixed sim step (loop calls this). */
   stepTimers(): void {
     if (this.toastTimer > 0) this.toastTimer--;
     if (this.nameTimer > 0) this.nameTimer--;
+    if (this.subtitleTimer > 0) this.subtitleTimer--;
   }
 
   /** Sync the DOM to current state — called once per rendered frame. */
@@ -200,6 +245,16 @@ export class Hud {
     if (progress && progressFill) {
       progress.style.display = this.progressValue > 0 ? 'block' : 'none';
       progressFill.style.width = `${Math.min(100, this.progressValue * 100).toFixed(1)}%`;
+    }
+    const { objective, subtitle } = this.els;
+    if (objective && this.objectiveText !== this.objectiveSig) {
+      this.objectiveSig = this.objectiveText;
+      objective.textContent = this.objectiveText;
+    }
+    if (subtitle) {
+      const shown = this.subtitleTimer > 0;
+      subtitle.textContent = shown ? this.subtitleText : '';
+      subtitle.style.opacity = shown ? '1' : '0';
     }
     this.refreshBars();
   }

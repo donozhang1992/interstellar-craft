@@ -25,6 +25,7 @@ import { isItemId } from '../core/items/catalog';
 import { craft } from '../core/crafting/craft';
 import { isRecipeId } from '../core/crafting/recipes';
 import { SURVIVAL, type SurvivalState } from '../core/player/stats';
+import type { QuestState } from '../core/quest/engine';
 import type { DeathCache } from './survival';
 import { UNLOCKED_CHAPTER } from './chapters';
 import type { InputPartial } from './input';
@@ -67,6 +68,14 @@ export interface GameHooks {
   useCanister?(): boolean;
   /** Place a flare (60 s emissive marker at the feet); returns the voxel or null. */
   useFlare?(): { x: number; y: number; z: number } | null;
+  /** Live quest state (chapter/step/flags/counters/unlocked). M3.3 — read fresh. */
+  quest?(): QuestState;
+  /** Current quest objective HUD string (currentObjective). M3.3. */
+  questObjective?(): string;
+  /** Raise a quest flag from a test (salvaged/antennaBuilt/…). M3.4 driver. */
+  setFlag?(name: string): void;
+  /** Add n (default 1) to a quest counter from a test. M3.4 driver. */
+  addCounter?(key: string, n?: number): void;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -105,6 +114,10 @@ export function installHooks(game: Game): GameHooks {
     caches: () => game.survival.caches,
     useCanister: () => game.survival.useCanister(),
     useFlare: () => game.survival.useFlare(),
+    quest: () => game.quest.state,
+    questObjective: () => game.quest.objective(),
+    setFlag: (name: string) => game.quest.raiseFlag(name),
+    addCounter: (key: string, n = 1) => game.quest.addCounter(key, n),
   };
   window.__game = hooks;
   return hooks;

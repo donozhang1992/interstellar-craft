@@ -30,11 +30,27 @@ import { getItem } from '../core/items/catalog';
 import { createMiningState, stepMining, applyMiningDrop } from '../core/mining/progress';
 import type { MiningTier } from '../core/mining/model';
 import type { SurvivalDrillTier } from '../core/player/stats';
+import { give } from '../core/player/inventory';
+import { validateAntenna } from '../core/quest/antenna';
 import { Survival } from './survival';
 import { placeBlock, raycastFromPlayer } from './edits';
+import {
+  QuestBridge,
+  COUNTER_MOVE,
+  COUNTER_MINED_REGOLITH,
+  COUNTER_PLACED,
+  FLAG_SALVAGED,
+  FLAG_ANTENNA_BUILT,
+} from './quest';
 import type { GameScene } from './scene';
 import type { InputController } from './input';
 import type { Hud } from './hud';
+
+/** Regolith block id (GAME_DESIGN §4) — mining one to completion feeds ch1. */
+const REGOLITH_ID = 1;
+
+/** Max distance (blocks) from the crash pod for the [E] salvage interaction. */
+export const POD_SALVAGE_REACH = 5;
 
 export class Game {
   private accumulator = 0;
@@ -45,6 +61,11 @@ export class Game {
   private miningProgress = 0;
 
   readonly survival: Survival;
+  readonly quest: QuestBridge;
+  /** Crash-pod marker cell (= spawn column feet); the [E] salvage anchor. */
+  readonly podPos: { x: number; y: number; z: number };
+  /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
+  onRender: ((dtSeconds: number) => void) | null = null;
 
   constructor(
     readonly world: VoxelWorld,
@@ -55,6 +76,35 @@ export class Game {
     readonly hud: Hud,
   ) {
     this.survival = new Survival(player, inv, world);
+    this.podPos = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
+    this.quest = new QuestBridge(inv, {
+      grant: (itemId, count) => {
+        give(this.inv, itemId as never, count);
+      },
+      onUnlock: (id) => {
+        this.hud.toast(id === 'workbench' ? 'WORKBENCH UNLOCKED' : 'SCANNER UNLOCKED');
+      },
+      onTransition: (objective) => {
+        this.hud.setObjective(objective);
+        this.hud.showSubtitle(objective);
+      },
+    });
+    this.hud.setObjective(this.quest.objective());
+  }
+
+  /**
+   * [E] interaction: salvage the crash pod when the player is within reach of the
+   * pod marker. Raises the ch1 `salvaged` flag (advance fires the workbench unlock
+   * + grant on the next step). Idempotent. Returns whether it fired this call.
+   */
+  salvagePod(): boolean {
+    const dx = this.player.pos.x - this.podPos.x;
+    const dy = this.player.pos.y - this.podPos.y;
+    const dz = this.player.pos.z - this.podPos.z;
+    if (dx * dx + dy * dy + dz * dz > POD_SALVAGE_REACH * POD_SALVAGE_REACH) return false;
+    if (this.quest.state.flags[FLAG_SALVAGED]) return false;
+    this.quest.raiseFlag(FLAG_SALVAGED);
+    return true;
   }
 
   /** Active hotbar item's tool tier; 'hand' when it is no tool (CP decision). */
@@ -105,6 +155,8 @@ export class Game {
       const drop = applyMiningDrop(this.inv, targetBlockId);
       if (drop.overflow > 0) this.hud.toast('INVENTORY FULL');
       else if (drop.dropped !== null) this.hud.pickup(drop.dropped);
+      // ch1 `mine` beat: a regolith(1) block mined to completion (GAME_DESIGN §3b).
+      if (targetBlockId === REGOLITH_ID) this.quest.addCounter(COUNTER_MINED_REGOLITH);
     }
     if (mined.refused) this.hud.toast('TOOL TOO WEAK');
 
@@ -120,6 +172,13 @@ export class Game {
         s.count--;
         if (s.count === 0) this.inv.slots[this.inv.activeHotbarSlot] = null;
         this.scene.worldMeshes.markDirtyAt(edited.x, edited.y, edited.z);
+        // ch1 `place` beat (any block, GAME_DESIGN §3b).
+        this.quest.addCounter(COUNTER_PLACED);
+        // ch2 `antenna` beat: re-check the structural validator after every
+        // placement; once a valid 3-stack-on-4-mast exists, raise the flag.
+        if (!this.quest.state.flags[FLAG_ANTENNA_BUILT] && validateAntenna(this.world)) {
+          this.quest.raiseFlag(FLAG_ANTENNA_BUILT);
+        }
       }
     }
 
@@ -141,6 +200,13 @@ export class Game {
     );
     for (const c of cleared) this.scene.worldMeshes.markDirtyAt(c.x, c.y, c.z);
 
+    // ── Quest (M3.3): ch1 `move` beat — count a tick for every stepped frame
+    // a directional key is held (GAME_DESIGN §3b "held movement"). Then advance
+    // the engine once over the mirrored flags/counters + live inventory. ──────
+    const { forward, back, left, right } = step.move;
+    if (forward || back || left || right) this.quest.addCounter(COUNTER_MOVE);
+    this.quest.step();
+
     this.hud.stepTimers();
   }
 
@@ -149,10 +215,21 @@ export class Game {
     this.scene.worldMeshes.rebuildDirty();
     this.scene.syncCamera(this.player);
     this.scene.updateHighlight(raycastFromPlayer(this.world, this.player));
+    // Scanner ore highlight (ch2 unlock): enable + refresh near the player once
+    // the quest grants it. Disabled (invisible) until then — no render change.
+    if (this.quest.scannerUnlocked) {
+      this.scene.scannerHighlight.setEnabled(true);
+      const p = this.player.pos;
+      this.scene.scannerHighlight.refresh(this.world, p.x, p.y, p.z);
+    }
     this.scene.blackHole.update(this.scene.camera);
+    // Visual-only per-frame updater (Observer Jelly). Fixed dt so it stays
+    // deterministic under stepFrames (one render = one fixed tick of drift).
+    this.onRender?.(PHYS.FIXED_DT);
     this.scene.render();
     this.hud.setProgress(this.miningProgress);
     this.hud.setSurvival(this.survival.state);
+    this.hud.setObjective(this.quest.objective()); // §10 top-right, live each frame
     this.hud.refresh();
   }
 
