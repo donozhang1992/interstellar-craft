@@ -188,9 +188,19 @@ describe('advance — chapter rollover', () => {
 
   it('completing the final chapter sets isComplete and stops', () => {
     const s = createQuestState();
+    // Satisfy every chapter's steps at once (ch1→ch5); advance consumes the
+    // whole satisfied prefix in a single call and parks at the end of ch5.
     const ctx: QuestContext = {
-      flags: { salvaged: true, antennaBuilt: true },
-      counters: { moveTicks: 30, 'mined:regolith': 10, placed: 5, puzzlesSolved: 3 },
+      flags: { salvaged: true, antennaBuilt: true, beaconValid: true, ignited: true },
+      counters: {
+        moveTicks: 30,
+        'mined:regolith': 10,
+        placed: 5,
+        puzzlesSolved: 3,
+        caveDepthReached: 1,
+        'collected:crystal': 12,
+        beaconCharge: 8,
+      },
       inv: createInventory(),
     };
     advance(s, ctx);
@@ -204,7 +214,7 @@ describe('advance — chapter rollover', () => {
   });
 });
 
-describe('full scripted playthrough ch1 → ch2', () => {
+describe('full scripted playthrough ch1 → ch5', () => {
   it('progresses beat by beat as flags/counters are raised in order', () => {
     const s = createQuestState();
 
@@ -239,10 +249,41 @@ describe('full scripted playthrough ch1 → ch2', () => {
     advance(s, ctxFromState(s));
     expect(currentStep(s)?.id).toBe('decode');
 
-    // Beat 6: decode 3 pulses → complete.
+    // Beat 6: decode 3 pulses → rolls into ch3.
     addCounter(s, 'puzzlesSolved', 3);
     const r6 = advance(s, ctxFromState(s));
     expect(r6.newlyUnlocked).toContain('scanner');
+    expect(s.chapter).toBe(3);
+    expect(currentStep(s)?.id).toBe('descend');
+
+    // Beat 7: descend into the caves.
+    addCounter(s, 'caveDepthReached', 1);
+    advance(s, ctxFromState(s));
+    expect(currentStep(s)?.id).toBe('harvest');
+
+    // Beat 8: collect 12 crystal → unlocks jump pack, rolls into ch4.
+    addCounter(s, 'collected:crystal', 12);
+    const r8 = advance(s, ctxFromState(s));
+    expect(r8.newlyUnlocked).toContain('jump_pack');
+    expect(s.chapter).toBe(4);
+    expect(currentStep(s)?.id).toBe('beacon');
+
+    // Beat 9: build the beacon → unlocks fusion igniter, rolls into ch5.
+    raiseFlag(s, 'beaconValid');
+    const r9 = advance(s, ctxFromState(s));
+    expect(r9.newlyUnlocked).toContain('fusion_igniter');
+    expect(s.chapter).toBe(5);
+    expect(currentStep(s)?.id).toBe('charge');
+
+    // Beat 10: charge with 8 crystal.
+    addCounter(s, 'beaconCharge', 8);
+    advance(s, ctxFromState(s));
+    expect(currentStep(s)?.id).toBe('ignite');
+
+    // Beat 11: ignite → ending, free mode unlocked, quest complete.
+    raiseFlag(s, 'ignited');
+    const r11 = advance(s, ctxFromState(s));
+    expect(r11.newlyUnlocked).toContain('free_mode');
     expect(isComplete(s)).toBe(true);
   });
 });
