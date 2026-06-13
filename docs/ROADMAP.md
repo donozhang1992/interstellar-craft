@@ -119,9 +119,17 @@ ending visual baselines · sequel-hook shot matches trailer framing.
 
 Audio set; save/load + export; pause/settings (volume, mouse sens, render scale);
 title screen (cover.png art direction); perf pass to budgets; README gameplay GIF;
-GitHub Pages deploy (`vite build` + actions workflow); itch.io-ready zip. **Exit**:
-all budgets green in CI · cold-start full playthrough on clean profile · Pages URL
-live · README updated.
+GitHub Pages deploy (`vite build` + actions workflow); itch.io-ready zip.
+
+| # | Task | Module footprint | Order |
+|---|------|-----------------|-------|
+| 5.1 | Save/load + export JSON (TECH_SPEC §4): serialize {version, seed, player, survival, quest, inventory, worldDiff sparse map}; localStorage `ic-save-v1`; export/import file; load restores deterministically | `src/core/save/**` (pure serialize), `src/game/**` (wire + worldDiff capture), `tests/unit/save/**`, `tests/e2e/**` | first (core) |
+| 5.2 | Pause menu + settings (volume, mouse sensitivity, render scale) + title-screen polish (cover.png art direction) | `src/game/**`, `index.html`, `tests/e2e`, HUD baselines | ∥ 5.3 |
+| 5.3 | Audio set: ambient drone, mining tick, place thock, O₂-low warning, quest-complete chime, ending cue; tiny synthesized or royalty-free ≤200 KB each; `docs/CREDITS.md` | `src/game/audio/**`, `public/audio/**`, `docs/CREDITS.md` | ∥ 5.2 |
+| 5.4 | Release: GitHub Pages deploy (`vite build` + `.github/workflows/deploy.yml`), README gameplay GIF, itch.io zip, final perf pass to budgets | `.github/**`, `README.md`, `vite.config.ts` (base path), `docs/media/**` | last (after 5.1-5.3) |
+
+**Exit**: all budgets green in CI · cold-start full playthrough on clean profile ·
+Pages URL live · README updated with gameplay GIF.
 
 ## Status Log
 
