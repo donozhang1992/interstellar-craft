@@ -107,6 +107,14 @@ entities, ending).
 **Exit**: full speedrun E2E < 90 s stepped sim · beacon validator property tests ·
 ending visual baselines · sequel-hook shot matches trailer framing.
 
+### Status
+| Date | Event |
+|------|-------|
+| 2026-06-13 | M4.1 ch3-5 chapters + M4.2 beacon validator/beetle/drone merged (67376ee, CP verified). Fixed 4 stale "ch2=final" tests (2 unit + 2 e2e) |
+| 2026-06-13 | M4.3a jump pack + entities + ch3 collection merged (354eacf, verifier PASS): hover (own+hold-Space, ≤2s, energy-gated), Crystal Beetle + Wrecked Drone (render gated outside __TEST__), ch3 caveDepthReached/collected:crystal wiring. 7 ch3 e2e |
+| 2026-06-13 | M4.3b beacon UI + ch5 ignition + ending merged (c1ecf31, verifier PASS): validateBeacon wiring + blueprint hint, [E] charge 8 crystal + ignite → free_mode, ending cinematic (src/render/ending.ts, own scene into shared renderer, no RT/bloom, skippable, deterministic still under __TEST__, alien+amber eyes). ending-sequel-hook baseline. Decisions: fusion_igniter not hard-gated on charge (playable from starter kit), free_mode blesses existing KeyF flight. OPS: 2nd worktree overlay-divergence (stray edits leaked to MAIN worktree, like M2.2) — CP `git restore` + merge verified branch |
+| 2026-06-13 | M4.4 closeout merged (6fd2a81, CP verified): full ch1→ch5 speedrun e2e (550 steps ≈9.2s vs 5400/90s budget), 8 beacon property tests (200 seeds each). Full ci 433 unit / 71 e2e+visual. **M4 CLOSED — all four exit criteria evidenced.** The full story is playable start→ending (crash→mine→craft→survive→beacon→ignite→alien receives signal) |
+
 ## M5 — Polish & Release
 
 Audio set; save/load + export; pause/settings (volume, mouse sens, render scale);

@@ -119,6 +119,12 @@ planned in **small, interruption-safe chunks** so hitting the limit never loses 
 ## 9. Control-Plane Merge Checklist
 
 - [ ] Dev report complete + verifier PASS
+- [ ] **Check the MAIN worktree is clean before merging** (`git status --porcelain`).
+      A known harness quirk: an agent's Edit/Write can occasionally leak stray edits
+      into the MAIN worktree (overlay/cache divergence — seen M2.2, M4.3b). If stray
+      changes block the merge, the authoritative version is the verified BRANCH —
+      `git restore` the tracked strays + delete stray untracked files, then merge the
+      branch (lossless; the work is committed on the branch).
 - [ ] Rebase/merge branch onto current main; rerun `npm run ci` post-merge
 - [ ] ROADMAP status log updated; task tracker updated
 - [ ] Push to origin `main`
