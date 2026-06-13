@@ -92,9 +92,20 @@ solvable + unsolvable-until-correct unit tests · objective HUD + decode panel b
 
 Jump pack; beetle + drone entities; ch3 cave expedition; ch4 beacon blueprint UI +
 shape validator; ch5 ignition sequence; ending cinematic (port trailer alien-world
-scene as in-engine sequence); free mode + flight. **Exit**: full speedrun E2E < 90 s
-stepped sim · beacon validator property tests · ending visual baselines · sequel-hook
-shot matches trailer framing.
+scene as in-engine sequence); free mode + flight. Design pinned in GAME_DESIGN
+§3d–3f (ch3-5 steps, beacon blueprint = launchpad+6 beacon_core+antenna cap,
+entities, ending).
+
+| # | Task | Module footprint | Order |
+|---|------|-----------------|-------|
+| 4.1 | Quest core: ch3/ch4/ch5 step tables + predicates (read flags/counters), extend CHAPTERS | `src/core/quest/chapters.ts` (+engine if needed), `tests/unit/quest/**` | ∥ 4.2 |
+| 4.2 | Beacon validator core (TDD): `validateBeacon(world)` for the §3d blueprint; + Crystal Beetle / Wrecked Drone pure behavior state | `src/core/quest/beacon.ts`, `src/core/entity/**`, `tests/unit/{quest,entity}/**` | ∥ 4.1 |
+| 4.3a | Glue: jump-pack equip+hover+energy (wire M2.3 stub), beetle+drone render+behavior, ch3 crystal-collection wiring | `src/game/**`, `src/render/**` (entities), `tests/e2e/**` | after 4.1+4.2 |
+| 4.3b | Glue: ch4 beacon blueprint UI + validator wiring, ch5 charge/[E]-ignite, ending cinematic (port trailer alien scene), free-mode/flight unlock | `src/game/**`, `src/render/**` (ending), `index.html`, baselines | after 4.3a |
+| 4.4 | Closeout: full ch1→ch5 speedrun E2E (<90s stepped), beacon validator property tests, ending visual baseline (sequel-hook framing) | `tests/**` | last |
+
+**Exit**: full speedrun E2E < 90 s stepped sim · beacon validator property tests ·
+ending visual baselines · sequel-hook shot matches trailer framing.
 
 ## M5 — Polish & Release
 

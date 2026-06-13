@@ -63,6 +63,27 @@ Pure-core linear state machine in `src/core/quest/`. Shape:
 
 Scanner (ch2 unlock): minimal M3 — highlights ore blocks within radius (a render tint / hook); full pulse/cooldown polish per §7 can come later.
 
+### 3d. Chapters 3–5 (M4 — canonical)
+Same engine; predicates read flags/counters the game layer raises from real events.
+
+**Ch3 Deep Veins** — steps:
+1. `descend` — "Descend into the caves" → `ctx.counters.caveDepthReached` true once feet y < 20 (set by game layer on first deep entry).
+2. `harvest` — "Collect 12 crystal" → `ctx.counters['collected:crystal'] >= 12` (game increments on each crystal(4) mined-to-inventory). onComplete: unlock `jump_pack` + crystal recipes (already in M1 table; flag gate). Jump pack becomes equippable → M4 wires the M2.3 `jumpPackWanted` stub to a real own+hold-Space hover with energy drain.
+
+**Ch4 The Beacon** — steps:
+1. `beacon` — "Build the beacon (launchpad → 6 beacon-core mast → antenna cap)" → `ctx.flags.beaconValid` set by `validateBeacon(world)`. **Blueprint (revised from the bare "24-block tower" prose to a sane, craftable assembly):** a `launchpad(13)` on solid ground, exactly 6 contiguous `beacon_core(12)` directly above it, topped by 1 `antenna(11)` — a clear vertical assembly. Validator scans for this composite anywhere. onComplete: unlock `fusion_igniter`.
+
+**Ch5 First Contact** — steps:
+1. `charge` — "Charge the beacon (insert 8 crystal)" → `ctx.counters.beaconCharge >= 8` (game increments on an [E] insert-crystal interaction at the beacon, consuming crystal). Requires fusion_igniter crafted.
+2. `ignite` — "Ignite [E]" → `ctx.flags.ignited` (an [E] interaction once charged). onComplete: play the ending cinematic, then unlock free mode + flight + all blocks.
+
+### 3e. Entities (M4 — minimal, GAME_DESIGN §8)
+- **Crystal Beetle**: wanders cave floors, flees the player; cornered → sheds 1 crystal shard (no kill). Minimal pure-state behavior + render sprite.
+- **Wrecked Drone**: static until repaired (2 copper + 1 crystal via [E]); then follows the player as a mobile light. Minimal.
+
+### 3f. Ending cinematic (M4)
+Port the trailer's alien-world beat as a short in-engine sequence (the alien on the green world receiving the signal — reuse the trailer's framing/assets where feasible). Deterministic, skippable; on finish → free mode (creative build + flight + all blocks, prototype fly mode = the unlocked Flight Core, §7).
+
 ## 4. Blocks (13 types)
 
 > IDs 1–6 are the M0-ported prototype blocks and are FROZEN (terrain snapshot hash
