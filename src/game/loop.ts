@@ -85,6 +85,13 @@ export class Game {
   readonly podPos: { x: number; y: number; z: number };
   /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
   onRender: ((dtSeconds: number) => void) | null = null;
+  /**
+   * Optional per-fixed-sim-step updater (M4.3a entities — beetle/drone behavior).
+   * Runs once per stepSim at the fixed dt, so entity motion stays deterministic
+   * under stepFrames. Installed only outside __TEST__ (see main.ts) to keep the
+   * visual baselines byte-identical.
+   */
+  onStep: ((dtSeconds: number) => void) | null = null;
 
   constructor(
     readonly world: VoxelWorld,
@@ -263,6 +270,11 @@ export class Game {
     const { forward, back, left, right } = step.move;
     if (forward || back || left || right) this.quest.addCounter(COUNTER_MOVE);
     this.quest.step();
+
+    // ── Entities (M4.3a): drive beetle/drone behavior once per fixed step at the
+    // fixed dt, so their motion is deterministic under stepFrames. Installed only
+    // outside __TEST__ (main.ts), so the visual-baseline harness never runs it. ──
+    this.onStep?.(dt);
 
     this.hud.stepTimers();
   }
