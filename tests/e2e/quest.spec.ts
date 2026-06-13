@@ -285,6 +285,7 @@ test('ch2 decode: solving the 3 glyphs completes ch2 + unlocks scanner', async (
   });
   expect(res.puzzles).toBe(3);
   expect(res.unlocked).toContain('scanner');
-  expect(res.objective).toBe('All objectives complete');
+  expect(res.complete).toBe(true); // ch2 done → rolled into ch3 (chapter > 2)
+  expect(res.objective).toBe('Descend into the caves'); // ch3 step 1 (M4 added ch3-5)
   expect(res.decodeOpen).toBe(false); // closed after the 3rd solve
 });

@@ -282,11 +282,11 @@ test('capstone: a fresh boot is driven the whole way through ch1 → ch2 by real
   // No-double-grant: each unlock recorded exactly once across the full arc.
   expect(done.workbenchCount).toBe(1);
   expect(done.scannerCount).toBe(1);
-  // Quest complete: HUD shows the completion sentinel and the final chapter (2)
-  // is exhausted — the engine leaves chapter at the last chapter with step at
-  // its length as the "complete" marker (engine.ts), so currentStep() is null.
-  expect(done.objective).toBe('All objectives complete');
-  expect(done.hud).toBe('All objectives complete');
-  expect(done.chapter).toBe(2);
-  expect(done.step).toBe(2); // ch2 has 2 steps → step == length == complete
+  // ch2 done: scanner unlocked and the quest rolls into ch3 (M4 added ch3-5, so
+  // ch2 is no longer the final chapter). This spec verifies the ch1→ch2 arc; the
+  // full ch1→ch5 run is covered by the M4.4 closeout. Objective advances to ch3.
+  expect(done.objective).toBe('Descend into the caves');
+  expect(done.hud).toBe('Descend into the caves');
+  expect(done.chapter).toBe(3);
+  expect(done.step).toBe(0); // ch3 step 0 (descend)
 });
