@@ -151,6 +151,39 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
     await shoot(page, POSES.deepSpace);
     await expect(page).toHaveScreenshot('deep-space-horizon.png');
   });
+
+  /** m. (M1.5) Crafting overlay — ROADMAP M1 exit criterion "HUD visual
+   *  baselines" / TEST_STRATEGY §4 shot list "crafting UI". Tab toggles the
+   *  overlay anywhere (overlayUI.ts attach()); opening pauses the sim, so the
+   *  canvas keeps the deterministic HUD-pose frame under it. Starter-kit grid
+   *  (drill/iron/copper/hull in the hotbar row) + all 17 §5 recipes with
+   *  have/need coloring and CRAFT gating. */
+  test('m. crafting overlay — starter-kit grid + recipe list (sim paused)', async ({ page }) => {
+    await shoot(page, POSES.hud);
+    await page.keyboard.press('Tab'); // real key event, DOM-only side effects
+    await expect(page.locator('#invcraft')).toHaveClass(/open/);
+    await expect(page.locator('#recipes .recipe')).toHaveCount(17); // rendered before shot
+    await expect(page).toHaveScreenshot('crafting-overlay.png');
+  });
+
+  /** n. (M1.5) Mining progress mid-hold — ROADMAP M1 exit criterion "HUD
+   *  visual baselines". Same pose/fly-hover recipe as shot g; GAME_DESIGN §4:
+   *  regolith 0.6 s ÷ hand ×1 = 36 steps, so 18 held steps = exactly 50%
+   *  progress (18 × (1/60) ÷ 0.6 = 0.5). stepFrames renders once at the end,
+   *  so the shot pins the half-full #mineprog bar + the target highlight,
+   *  with the block still intact. */
+  test('n. mining progress — regolith hand-mine held 18/36 steps', async ({ page }) => {
+    await page.evaluate((p) => {
+      const g = window.__game!;
+      g.teleport!(p.x, p.y, p.z, p.yaw, p.pitch);
+      // Fly-hover so the held steps don't drift the camera; empty slot 5 = hand.
+      g.setInput!({ toggleFly: true, slot: 4 });
+      g.stepFrames!(1);
+      g.setInput!({ mine: true });
+      g.stepFrames!(18); // 50% of the 36-step hand time — bar mid-fill
+    }, POSES.mine);
+    await expect(page).toHaveScreenshot('mining-progress.png');
+  });
 });
 
 test.describe('static demo pages (render once, READY-gated)', () => {
