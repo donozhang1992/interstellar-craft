@@ -43,10 +43,22 @@ HUD visual baselines · mining speed matrix (block × tool) snapshot test.
 
 ## M2 — Survival: Stats, Death, Caves
 
-HP/O₂/Energy with GAME_DESIGN §6 curves; death/respawn/drop; cave carving in
-worldgen; glowstone/crystal/flares; solar recharge; O₂ canisters. **Exit**: stat
-curve unit tests match design table · E2E death loop · cave visual baseline ·
-worldgen snapshot updated once (justified).
+HP/O₂/Energy with GAME_DESIGN §6/§12 curves; death/respawn/drop; cave carving in
+worldgen; lamp(glowstone)/crystal in caves; flares; solar recharge; O₂ canisters.
+M2 design decisions logged in GAME_DESIGN §12 (survival block + M2 simplifications).
+**This is the one milestone where the worldgen terrain snapshot changes** — the
+terrain-affected visual baselines are regenerated WITH control-plane pre-approval.
+
+| # | Task | Module footprint | Order |
+|---|------|-----------------|-------|
+| 2.1 | Stats core (TDD): HP/O₂/Energy step curves, fall damage, death detection, respawn+drop cache | `src/core/player/stats.ts`, `src/core/player/death.ts`, `tests/unit/stats/**` | ∥ 2.2 |
+| 2.2 | Worldgen rework (TDD): 3 worm-carver caves→y8, iron y<24, copper y<28, lamp on cave ceilings, crystal y<20; keep spawn solid. NEW terrain hash + regen terrain visual baselines (PRE-APPROVED) | `src/core/world/worldgen.ts`, `src/game/spawn.ts`, `tests/unit/world/**`, terrain `tests/visual` baselines + any terrain-dependent `tests/e2e` fixups | ∥ 2.1 (merge 2.1 first) |
+| 2.3 | Game glue: stat HUD bars (HP/O₂/Energy), depth/pod O₂ logic, energy drains, solar/canister/flare use, death→respawn flow, cave lamp lighting | `src/game/**`, `index.html`, `tests/e2e/**`, HUD visual baselines | after 2.1+2.2 |
+| 2.4 | Closeout: E2E death loop, cave visual baseline, survival exit-criteria audit | `tests/**` | last |
+
+**Exit**: stat curve unit tests match design table · E2E death loop · cave visual
+baseline · worldgen snapshot updated once (justified) · ore/lamp/crystal obtainable
+by mining (M1's give()-hook stand-in retired).
 
 ## M3 — Quest Engine + Chapters 1–2
 

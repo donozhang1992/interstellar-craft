@@ -132,11 +132,31 @@ ending cue reused from trailer mood. All optional until M5.
 
 ## 12. Tuning Constants (canonical)
 
+**Movement (prototype-ported `PHYS`, authoritative — supersedes earlier aspirational
+values; visual/e2e baselines depend on these):**
 ```
-WALK_SPEED = 4.3        GRAVITY = -14         JUMP_VEL = 6.2
-REACH = 5 blocks        O2_SURFACE = 0.25/s   O2_CAVE = 0.6/s
-HP_O2ZERO = 4/s         FALL_SAFE = 3 blocks  FALL_DMG = (n-3)*8
-PICKUP_RADIUS = 3       HOTBAR = 8 slots      STACK_MAX = 64
+WALK_SPEED = 5    SPRINT = 8.5    FLY = 14    GRAVITY = -9.5    JUMP_VEL = 5.2
+player 0.6w × 1.8h, eye 1.62    REACH = 7 blocks (prototype)
 ```
+
+**Survival (M2 — new this milestone):**
+```
+HP_MAX = 100      O2_MAX = 100        ENERGY_MAX = 100
+O2_SURFACE = 0.25/s    O2_DEEP = 0.6/s (depth y < 28)    O2_SAFE_RADIUS = 4 (near pod → refill)
+HP_O2ZERO = 4/s (drain when O2 = 0)   HP_REGEN = 1/s (when O2 > 50%)
+FALL_SAFE = 3 blocks    FALL_DMG = (n-3)*8 hp   (NEW: prototype had no fall damage)
+ENERGY_JUMPPACK = 8/jump-s   ENERGY_DRILL = 1.5/s (mk2+ while mining)   SOLAR = 2/s (panel placed in radius)
+O2_CANISTER = +40    FLARE_SECONDS = 60    PICKUP_RADIUS = 3
+DEATH_DROP = 50% of each stack at death point (recoverable cache); respawn at pod
+HOTBAR = 8 slots    STACK_MAX = 64
+```
+
+> **M2 simplifications (decided 2026-06-13):** ① tidally locked world has no
+> day/night, so SOLAR recharges a flat 2/s whenever a placed solar_panel is within
+> radius (no sun-angle math); ② O₂ "deep" drain is depth-gated (y < 28), not
+> literally "inside a carved cave"; ③ O₂ refills when within O2_SAFE_RADIUS of the
+> crash pod / spawn; ④ death drops a single recoverable cache at the death position
+> (no scattered ground-item entities until later); ⑤ fall damage applies on landing
+> using vertical blocks fallen.
 
 Changing any value here requires updating the matching unit test fixture in the same commit.
