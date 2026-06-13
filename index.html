@@ -288,6 +288,68 @@
         color: #e08a8a;
       }
 
+      /* ── Survival stat bars (GAME_DESIGN §10) — HP / O₂ / Energy bottom-left ── */
+      #stats {
+        position: fixed;
+        left: 14px;
+        bottom: 16px;
+        z-index: 10;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font:
+          600 10px/1 'Segoe UI',
+          sans-serif;
+        letter-spacing: 1px;
+      }
+      .stat {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .stat-label {
+        width: 18px;
+        color: #aeb6e0;
+        text-shadow: 0 1px 2px #000;
+      }
+      .stat-track {
+        width: 150px;
+        height: 8px;
+        border-radius: 5px;
+        background: rgba(10, 12, 24, 0.7);
+        border: 1px solid rgba(160, 170, 220, 0.35);
+        overflow: hidden;
+      }
+      .stat-fill {
+        height: 100%;
+        width: 100%;
+        border-radius: 4px;
+        transition: width 0.12s linear;
+      }
+      .stat.hp .stat-fill {
+        background: linear-gradient(90deg, #ff5a5a, #ff8a6b);
+      }
+      .stat.o2 .stat-fill {
+        background: linear-gradient(90deg, #4fd2ff, #7be8ff);
+      }
+      .stat.energy .stat-fill {
+        background: linear-gradient(90deg, #ffc24a, #ffd98a);
+      }
+      /* O₂ low-warning (< 25): pulse the label + bar so it reads as urgent. */
+      .stat.o2.low .stat-label {
+        color: #ff6b6b;
+      }
+      .stat.o2.low .stat-fill {
+        background: linear-gradient(90deg, #ff5a5a, #4fd2ff);
+        animation: o2flash 0.8s steps(1, end) infinite;
+      }
+      @keyframes o2flash {
+        50% {
+          opacity: 0.35;
+        }
+      }
+
       #overlay {
         position: fixed;
         inset: 0;
@@ -371,6 +433,21 @@
     <div id="itemname"></div>
     <div id="hotbar"></div>
     <div id="info"></div>
+
+    <div id="stats">
+      <div class="stat hp" id="stat-hp">
+        <span class="stat-label">HP</span>
+        <div class="stat-track"><div class="stat-fill" id="stat-hp-fill"></div></div>
+      </div>
+      <div class="stat o2" id="stat-o2">
+        <span class="stat-label">O₂</span>
+        <div class="stat-track"><div class="stat-fill" id="stat-o2-fill"></div></div>
+      </div>
+      <div class="stat energy" id="stat-energy">
+        <span class="stat-label">EN</span>
+        <div class="stat-track"><div class="stat-fill" id="stat-energy-fill"></div></div>
+      </div>
+    </div>
 
     <div id="invcraft">
       <div class="panel">

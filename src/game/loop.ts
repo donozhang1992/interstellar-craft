@@ -29,6 +29,8 @@ import { activeItem, type Inventory } from '../core/player/inventory';
 import { getItem } from '../core/items/catalog';
 import { createMiningState, stepMining, applyMiningDrop } from '../core/mining/progress';
 import type { MiningTier } from '../core/mining/model';
+import type { SurvivalDrillTier } from '../core/player/stats';
+import { Survival } from './survival';
 import { placeBlock, raycastFromPlayer } from './edits';
 import type { GameScene } from './scene';
 import type { InputController } from './input';
@@ -42,6 +44,8 @@ export class Game {
   private readonly mining = createMiningState();
   private miningProgress = 0;
 
+  readonly survival: Survival;
+
   constructor(
     readonly world: VoxelWorld,
     readonly player: PlayerState,
@@ -49,7 +53,9 @@ export class Game {
     readonly scene: GameScene,
     readonly input: InputController,
     readonly hud: Hud,
-  ) {}
+  ) {
+    this.survival = new Survival(player, inv, world);
+  }
 
   /** Active hotbar item's tool tier; 'hand' when it is no tool (CP decision). */
   private activeToolTier(): MiningTier {
@@ -62,6 +68,14 @@ export class Game {
   /** Advance the simulation one fixed step (edits first, then movement). */
   stepSim(dt: number): void {
     const step = this.input.consumeStep();
+
+    // Energy gate (M2.1 contract, game layer): with energy exhausted the drill
+    // falls back to hand-tier mining. Read the survival state from the PREVIOUS
+    // step (stepSurvival runs after movement below), so the gate reacts one step
+    // after energy hits 0 — fine at 60 Hz, and keeps a single read point.
+    const equippedTier = this.activeToolTier();
+    const energyEmpty = this.survival.energyEmpty();
+    const effectiveTier: MiningTier = energyEmpty ? 'hand' : equippedTier;
 
     // ── Hold-to-mine (GAME_DESIGN §4): re-raycast every held step; the core
     // state machine owns restart-on-target-change / release semantics. ──────
@@ -79,7 +93,7 @@ export class Game {
     const mined = stepMining(this.mining, {
       targetKey,
       targetBlockId,
-      toolTier: this.activeToolTier(),
+      toolTier: effectiveTier,
       dt,
     });
     this.miningProgress = mined.progress;
@@ -110,6 +124,23 @@ export class Game {
     }
 
     stepPlayer(this.player, this.world, step.move, dt);
+
+    // ── Survival (M2.3): one stepSurvival after movement so fall damage reads
+    // the post-resolve onGround/pos. `mining` for energy drain = a held mine
+    // that actually advanced this step (mined.progress moves only when not
+    // refused / on a real target). Jump-pack thrust is not wired (no jump_pack
+    // placement/own path yet — see survival.ts) so jumpPackWanted is false. ──
+    const miningThisStep = step.mineHeld && hit !== null && !mined.refused;
+    const cleared = this.survival.step(
+      {
+        mining: miningThisStep,
+        drillTier: equippedTier as SurvivalDrillTier,
+        jumpPackWanted: false,
+      },
+      dt,
+    );
+    for (const c of cleared) this.scene.worldMeshes.markDirtyAt(c.x, c.y, c.z);
+
     this.hud.stepTimers();
   }
 
@@ -121,6 +152,7 @@ export class Game {
     this.scene.blackHole.update(this.scene.camera);
     this.scene.render();
     this.hud.setProgress(this.miningProgress);
+    this.hud.setSurvival(this.survival.state);
     this.hud.refresh();
   }
 

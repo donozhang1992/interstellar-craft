@@ -63,11 +63,16 @@ export function createGameScene(world: VoxelWorld, mount: HTMLElement): GameScen
   scene.add(blackHole.billboard);
 
   // ---- lighting (prototype 光照 — the accretion disk is the key light) ----
-  scene.add(new THREE.AmbientLight(0x46507a, 0.55));
+  const ambient = new THREE.AmbientLight(0x46507a, 0.55);
+  scene.add(ambient);
   const sun = new THREE.DirectionalLight(0xffd9b0, 1.05);
   sun.position.copy(BH_DIR).multiplyScalar(100); // prototype: the disk lights the terrain
   scene.add(sun);
-  scene.add(new THREE.HemisphereLight(0x32406e, 0x0a0a12, 0.5));
+  const hemi = new THREE.HemisphereLight(0x32406e, 0x0a0a12, 0.5);
+  scene.add(hemi);
+  // Surface-light intensities, restored above ground (M2.3 cave dim baseline).
+  const AMBIENT_SURFACE = ambient.intensity;
+  const HEMI_SURFACE = hemi.intensity;
 
   // ---- voxel world meshes ----
   const worldMeshes = new WorldMeshes(world, scene, createBlockMaterials());
@@ -90,6 +95,17 @@ export function createGameScene(world: VoxelWorld, mount: HTMLElement): GameScen
     syncCamera(player: PlayerState): void {
       camera.position.set(player.pos.x, player.pos.y + PHYS.EYE_HEIGHT, player.pos.z);
       camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+      // Cave dim (M2.3, MINIMAL — no voxel light propagation): fade the fill
+      // lights as the eye descends below y=20 so caves read dark and lamps/
+      // crystals matter; at/above y=20 the surface intensities are restored
+      // UNCHANGED, so surface visual baselines stay byte-identical. Deterministic
+      // (pure function of camera y). Floor 0.18 keeps caves navigable, not black.
+      const eyeY = camera.position.y;
+      const DIM_TOP = 20; // start dimming below this eye-y
+      const DIM_FLOOR = 0.18; // residual fraction deep underground
+      const t = eyeY >= DIM_TOP ? 1 : Math.max(DIM_FLOOR, eyeY / DIM_TOP);
+      ambient.intensity = AMBIENT_SURFACE * t;
+      hemi.intensity = HEMI_SURFACE * t;
     },
     updateHighlight(hit: RaycastResult | null): void {
       if (hit) {

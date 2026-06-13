@@ -67,6 +67,14 @@ export function createItemSwatch(itemId: ItemId): HTMLElement {
   return chip;
 }
 
+/** One survival stat bar: the fill element + (for O₂) the low-warning host. */
+export interface StatBar {
+  /** The 0–100% width fill. */
+  fill: HTMLElement;
+  /** The bar row (gets the `low` class when the value is in warning range). */
+  row: HTMLElement;
+}
+
 export interface HudElements {
   hotbar: HTMLElement;
   info: HTMLElement | null;
@@ -77,7 +85,21 @@ export interface HudElements {
   /** Mining progress bar container + fill (near the crosshair). */
   progress: HTMLElement | null;
   progressFill: HTMLElement | null;
+  /** Survival stat bars (bottom-left, §10) — null in headless harness fallbacks. */
+  hpBar?: StatBar | null;
+  o2Bar?: StatBar | null;
+  energyBar?: StatBar | null;
 }
+
+/** A snapshot of the three survival numbers the HUD renders (0..100 each). */
+export interface SurvivalView {
+  hp: number;
+  o2: number;
+  energy: number;
+}
+
+/** O₂ at or below this fraction (of 100) flashes the low-warning style (§10). */
+const O2_LOW = 25;
 
 export class Hud {
   private readonly slotEls: HTMLElement[] = [];
@@ -88,6 +110,9 @@ export class Hud {
   private nameTimer = 0;
   private nameText = '';
   private progressValue = 0;
+  private survival: SurvivalView = { hp: 100, o2: 100, energy: 100 };
+  /** Last written "hp:o2:o2low" signature to skip per-frame bar DOM churn. */
+  private barSig = '';
 
   constructor(
     private readonly inv: Inventory,
@@ -133,6 +158,11 @@ export class Hud {
     this.progressValue = p;
   }
 
+  /** Survival stats (HP/O₂/Energy, 0..100) — set by the loop each frame. */
+  setSurvival(s: SurvivalView): void {
+    this.survival = s;
+  }
+
   /** Advance transient timers by one fixed sim step (loop calls this). */
   stepTimers(): void {
     if (this.toastTimer > 0) this.toastTimer--;
@@ -170,6 +200,26 @@ export class Hud {
     if (progress && progressFill) {
       progress.style.display = this.progressValue > 0 ? 'block' : 'none';
       progressFill.style.width = `${Math.min(100, this.progressValue * 100).toFixed(1)}%`;
+    }
+    this.refreshBars();
+  }
+
+  /** Sync the three survival stat bars; skips DOM writes when nothing changed. */
+  private refreshBars(): void {
+    const { hpBar, o2Bar, energyBar } = this.els;
+    if (!hpBar && !o2Bar && !energyBar) return;
+    const { hp, o2, energy } = this.survival;
+    const low = o2 <= O2_LOW;
+    // Quantize widths to 0.1% so floating drift doesn't churn the DOM every frame.
+    const q = (v: number): string => `${Math.max(0, Math.min(100, v)).toFixed(1)}%`;
+    const sig = `${q(hp)}|${q(o2)}|${q(energy)}|${low ? 1 : 0}`;
+    if (sig === this.barSig) return;
+    this.barSig = sig;
+    if (hpBar) hpBar.fill.style.width = q(hp);
+    if (energyBar) energyBar.fill.style.width = q(energy);
+    if (o2Bar) {
+      o2Bar.fill.style.width = q(o2);
+      o2Bar.row.classList.toggle('low', low);
     }
   }
 

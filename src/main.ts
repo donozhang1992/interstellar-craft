@@ -35,6 +35,13 @@ give(inv, 'block:9', 4); // hull → slot 3
 
 const scene = createGameScene(world, app);
 
+/** Resolve a `{row, fill}` stat bar from its DOM ids, or null if markup absent. */
+function statBar(rowId: string, fillId: string): { row: HTMLElement; fill: HTMLElement } | null {
+  const row = document.getElementById(rowId);
+  const fill = document.getElementById(fillId);
+  return row && fill ? { row, fill } : null;
+}
+
 const hud = new Hud(inv, {
   hotbar: document.getElementById('hotbar') ?? document.createElement('div'),
   info: document.getElementById('info'),
@@ -42,6 +49,9 @@ const hud = new Hud(inv, {
   toast: document.getElementById('toast'),
   progress: document.getElementById('mineprog'),
   progressFill: document.getElementById('mineprog-fill'),
+  hpBar: statBar('stat-hp', 'stat-hp-fill'),
+  o2Bar: statBar('stat-o2', 'stat-o2-fill'),
+  energyBar: statBar('stat-energy', 'stat-energy-fill'),
 });
 const input = new InputController(
   player,
@@ -55,6 +65,20 @@ input.attach({
 });
 
 const game = new Game(world, player, inv, scene, input, hud);
+
+// M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
+// G = flare (place a 60 s emissive lamp marker at the feet). Suppressed while the
+// inventory/crafting overlay is open. Edge-triggered (ignore OS auto-repeat). A
+// placed flare's voxel is marked dirty so it meshes immediately.
+addEventListener('keydown', (e) => {
+  if (input.uiOpen || e.repeat) return;
+  if (e.code === 'KeyC') {
+    game.survival.useCanister();
+  } else if (e.code === 'KeyG') {
+    const placed = game.survival.useFlare();
+    if (placed) scene.worldMeshes.markDirtyAt(placed.x, placed.y, placed.z);
+  }
+});
 
 const craftRoot = document.getElementById('invcraft');
 const craftGrid = document.getElementById('invgrid');
