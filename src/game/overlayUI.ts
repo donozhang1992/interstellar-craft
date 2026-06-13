@@ -76,10 +76,15 @@ export class InventoryCraftOverlay {
     this.game.paused = opening;
     this.input.uiOpen = opening;
     if (opening) {
-      document.exitPointerLock();
+      document.exitPointerLock(); // release the mouse for clicking cells/recipes
       this.selected = null;
       this.render();
+    } else {
+      this.input.requestLock(); // closing → return straight to play, not the title screen
     }
+    // Keep the title screen hidden while crafting is open (it sits above this
+    // panel); releasing pointer lock above would otherwise re-reveal it.
+    this.input.syncTitleOverlay();
   }
 
   /** Rebuild both panes from current inventory state. */
