@@ -209,6 +209,20 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
     await expect(page).toHaveScreenshot('mining-progress.png');
   });
 
+  /** q. (M3.4) Objective HUD line — ROADMAP M3 exit criterion "objective HUD …
+   *  baseline". The top-right #objective line (GAME_DESIGN §10) at a fixed pose
+   *  in a known state. On a fresh boot the quest is ch1 step 1, so the line reads
+   *  "Move with WASD" deterministically (no flags/counters touched). The HUD pose
+   *  is sky-dominant so the objective text reads clearly against the starfield;
+   *  the line is pure DOM (static until a stepped event advances it), so the shot
+   *  baselines like every other HUD element. Pins the objective HUD rendering. */
+  test('q. objective HUD — top-right objective line at the ch1 boot state', async ({ page }) => {
+    await shoot(page, POSES.hud);
+    // Boot state: no quest events fired, so the objective line is the ch1 opener.
+    await expect(page.locator('#objective')).toHaveText('Move with WASD');
+    await expect(page).toHaveScreenshot('objective-hud.png');
+  });
+
   /** p. (M3.3) Decode panel overlay — ch2 step2 (GAME_DESIGN §3c). Fast-forward
    *  the quest to the decode step via hooks, open the panel with [P] (pauses the
    *  sim like the crafting overlay), and fill the cross glyph's centre column on
