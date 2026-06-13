@@ -100,11 +100,7 @@ if (!window.__TEST__) {
   game.onRender = (dt) => {
     // ch1: hover near the pod; ch2+: lift toward a "raise the mast" beacon point.
     const ch2 = game.quest.state.chapter >= 2;
-    jelly.setTarget(
-      player.pos.x + 3,
-      ch2 ? player.pos.y + 8 : player.pos.y + 2,
-      player.pos.z - 3,
-    );
+    jelly.setTarget(player.pos.x + 3, ch2 ? player.pos.y + 8 : player.pos.y + 2, player.pos.z - 3);
     jelly.update(dt);
   };
 }

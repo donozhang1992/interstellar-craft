@@ -138,7 +138,11 @@ test('ch1 place beat: placing 5 blocks advances place -> salvage', async ({ page
         g.state!.world.setBlock(48, hh + 1, 48, 0); // clear for the next placement
       }
     }
-    return { objective: g.questObjective!(), placed: g.quest!().counters.placed, attempted: placed };
+    return {
+      objective: g.questObjective!(),
+      placed: g.quest!().counters.placed,
+      attempted: placed,
+    };
   }, h);
   expect(res.placed).toBeGreaterThanOrEqual(5);
   expect(res.objective).toBe('Salvage the crash pod [E]');
