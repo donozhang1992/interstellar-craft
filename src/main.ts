@@ -33,6 +33,25 @@ give(inv, 'block:7', 8); // iron ore → slot 1
 give(inv, 'block:8', 8); // copper ore → slot 2
 give(inv, 'block:9', 4); // hull → slot 3
 
+// DEV-ONLY test aid — load `/?testcave` to carve a lit chamber directly under the
+// spawn column so digging straight down (~10 blocks) reveals the cave + lamp glow.
+// Gated by env.DEV AND the query flag, so the default seed-0x7e world (and every
+// unit/e2e/visual baseline, none of which set the flag) is byte-for-byte unchanged.
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('testcave')) {
+  const CX = 48;
+  const CZ = 48;
+  for (let x = CX - 4; x <= CX + 4; x++)
+    for (let z = CZ - 4; z <= CZ + 4; z++)
+      for (let y = 15; y <= 20; y++) world.setBlock(x, y, z, 0); // 9×9×6 air room
+  // Glowing floor tiles (lamp id 6) on a grid + crystal(4) pillars to mine-test.
+  for (let dx = -3; dx <= 3; dx += 3)
+    for (let dz = -3; dz <= 3; dz += 3) world.setBlock(CX + dx, 14, CZ + dz, 6);
+  world.setBlock(CX - 2, 15, CZ - 2, 4); // crystal pillar
+  world.setBlock(CX + 2, 15, CZ + 2, 4); // crystal pillar
+  world.setBlock(CX - 2, 15, CZ + 2, 6); // lamp pillar
+  world.setBlock(CX + 2, 15, CZ - 2, 6); // lamp pillar
+}
+
 const scene = createGameScene(world, app);
 
 /** Resolve a `{row, fill}` stat bar from its DOM ids, or null if markup absent. */
