@@ -187,7 +187,12 @@ test('fall damage applies on a scripted drop beyond the safe threshold', async (
     const hpBefore = g.survival!().hp;
     g.stepFrames!(180); // 3 s — fall ~10 blocks and settle in low gravity
     const p = g.state!.player.pos;
-    return { hpBefore, hpAfter: g.survival!().hp, landedY: p.y, onGround: g.state!.player.onGround };
+    return {
+      hpBefore,
+      hpAfter: g.survival!().hp,
+      landedY: p.y,
+      onGround: g.state!.player.onGround,
+    };
   });
   expect(res.onGround).toBe(true); // landed
   expect(res.landedY).toBeCloseTo(21, 0); // on top of the y=20 floor
