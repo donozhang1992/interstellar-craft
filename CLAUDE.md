@@ -19,9 +19,11 @@ black hole. Web, Three.js r160, TypeScript, single-player.
   Premultiplied-alpha billboard. Don't "fix" the vertex-AO off-by-one. (TECH_SPEC §7)
 - Never weaken a test/baseline/threshold to pass. 3 failed fixes ⇒ stop and escalate.
 - Only the control plane merges to `main` and pushes.
-- Token budget discipline (AGENT_RULES §8): work in small interruption-safe chunks;
-  check window burn (`npx ccusage@latest blocks`) before launching agents; agents
-  commit early and often; resume from git + task tracker, never restart done work.
+- Token budget discipline (AGENT_RULES §8): invoke the `budget-guard` skill for
+  unattended multi-agent work — it polls ccusage in the background and caps each
+  agent wave at `kSafe` (scales to any parallelism), checkpoints + ScheduleWakeups
+  before the hard limit so a wrong estimate never needs manual rescue. Agents commit
+  early and often; resume from git + task tracker, never restart done work.
 
 ## Commands
 

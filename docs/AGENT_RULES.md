@@ -104,6 +104,17 @@ planned in **small, interruption-safe chunks** so hitting the limit never loses 
    Never restart finished work; verify it instead.
 6. **Reporting**: at each chunk start, the control plane states (one line): chunk
    scope, estimated cost, measured remaining window. At chunk end: actual cost.
+7. **Use the `budget-guard` skill** (user-level, `~/.claude/skills/budget-guard`) for
+   any unattended multi-agent stretch. It is the operational implementation of this
+   section: a background ccusage poller + a **wave-sizing gate** that caps in-flight
+   agents at `kSafe = floor((remaining − BUFFER) / PER_AGENT_RESERVE)` (BUFFER =
+   max(3M, 6% of window), reserved for graceful shutdown). Invoke it at session
+   start; before every agent dispatch read its status file and launch only
+   `min(desired, kSafe)` agents this wave, holding the rest for the next wave. On its
+   WARN/CRITICAL ping (or kSafe→0), checkpoint (commit WIP + roadmap/tracker resume
+   point) and `ScheduleWakeup` past the window reset — never let a wrong estimate
+   strand work needing manual rescue. The wave gate scales to any parallelism (2 or
+   50 agents); never hardcode an agent count.
 
 ## 9. Control-Plane Merge Checklist
 
