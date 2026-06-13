@@ -177,8 +177,8 @@ test('capstone: a fresh boot is driven the whole way through ch1 → ch2 by real
     return {
       chapter: g.quest!().chapter,
       salvaged: g.quest!().flags.salvaged ?? false,
-      hull: g.state!.inv.slots
-        .filter((s) => s && s.itemId === 'block:9')
+      hull: g
+        .state!.inv.slots.filter((s) => s && s.itemId === 'block:9')
         .reduce((n, s) => n + s!.count, 0),
     };
   });
@@ -196,8 +196,8 @@ test('capstone: a fresh boot is driven the whole way through ch1 → ch2 by real
       objective: g.questObjective!(),
       unlocked: [...q.unlocked],
       hud: document.getElementById('objective')!.textContent,
-      hull: g.state!.inv.slots
-        .filter((s) => s && s.itemId === 'block:9')
+      hull: g
+        .state!.inv.slots.filter((s) => s && s.itemId === 'block:9')
         .reduce((n, s) => n + s!.count, 0),
     };
   });
