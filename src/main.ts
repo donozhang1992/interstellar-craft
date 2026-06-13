@@ -15,6 +15,7 @@ import { createGameScene } from './game/scene';
 import { findSpawn } from './game/spawn';
 import { installHooks } from './game/hooks';
 import { DecodeOverlay } from './game/decodeUI';
+import { createObserverJelly } from './render/observerJelly';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -87,6 +88,26 @@ input.attach({
 });
 
 const game = new Game(world, player, inv, scene, input, hud);
+
+// Observer Jelly (GAME_DESIGN §8) — a diegetic floating guide. Added ONLY outside
+// the visual-baseline harness (__TEST__): it is a moving emissive scene object, so
+// adding it under __TEST__ would change the byte-identical world/sky baselines. In
+// real play it bobs near spawn (ch1) and drifts up to the antenna-hill height once
+// ch2 begins. Pure visual; driven off the loop's per-frame updater at fixed dt.
+if (!window.__TEST__) {
+  const jelly = createObserverJelly(player.pos.x + 3, player.pos.y + 2, player.pos.z - 3);
+  scene.scene.add(jelly.group);
+  game.onRender = (dt) => {
+    // ch1: hover near the pod; ch2+: lift toward a "raise the mast" beacon point.
+    const ch2 = game.quest.state.chapter >= 2;
+    jelly.setTarget(
+      player.pos.x + 3,
+      ch2 ? player.pos.y + 8 : player.pos.y + 2,
+      player.pos.z - 3,
+    );
+    jelly.update(dt);
+  };
+}
 
 // Decode panel (M3.3 ch2 step2) — wired before the key handler so [P] / the
 // antenna [E] can open it. Suppressed while any other overlay is open.

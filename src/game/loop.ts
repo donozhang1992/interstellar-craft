@@ -64,6 +64,8 @@ export class Game {
   readonly quest: QuestBridge;
   /** Crash-pod marker cell (= spawn column feet); the [E] salvage anchor. */
   readonly podPos: { x: number; y: number; z: number };
+  /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
+  onRender: ((dtSeconds: number) => void) | null = null;
 
   constructor(
     readonly world: VoxelWorld,
@@ -213,7 +215,17 @@ export class Game {
     this.scene.worldMeshes.rebuildDirty();
     this.scene.syncCamera(this.player);
     this.scene.updateHighlight(raycastFromPlayer(this.world, this.player));
+    // Scanner ore highlight (ch2 unlock): enable + refresh near the player once
+    // the quest grants it. Disabled (invisible) until then — no render change.
+    if (this.quest.scannerUnlocked) {
+      this.scene.scannerHighlight.setEnabled(true);
+      const p = this.player.pos;
+      this.scene.scannerHighlight.refresh(this.world, p.x, p.y, p.z);
+    }
     this.scene.blackHole.update(this.scene.camera);
+    // Visual-only per-frame updater (Observer Jelly). Fixed dt so it stays
+    // deterministic under stepFrames (one render = one fixed tick of drift).
+    this.onRender?.(PHYS.FIXED_DT);
     this.scene.render();
     this.hud.setProgress(this.miningProgress);
     this.hud.setSurvival(this.survival.state);
