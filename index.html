@@ -557,6 +557,113 @@
       #decode .submit:hover {
         background: rgba(255, 217, 138, 0.2);
       }
+
+      /* ── Beacon blueprint panel (ch4, GAME_DESIGN §3d) — passive build hint ── */
+      #beacon-blueprint {
+        position: fixed;
+        right: 16px;
+        top: 64px;
+        z-index: 12;
+        display: none;
+        pointer-events: none;
+        width: 196px;
+        padding: 12px 14px;
+        border-radius: 10px;
+        background: rgba(8, 10, 22, 0.82);
+        border: 1px solid rgba(160, 170, 220, 0.3);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #cfd6ff;
+      }
+      #beacon-blueprint.open {
+        display: block;
+      }
+      #beacon-blueprint h3 {
+        margin: 0 0 8px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 3px;
+        color: #9aa3cc;
+      }
+      #beacon-blueprint .bp-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin: 5px 0;
+        font-size: 12px;
+        letter-spacing: 0.5px;
+      }
+      #beacon-blueprint .bp-ico {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        flex: 0 0 auto;
+        box-shadow: 0 0 6px rgba(0, 0, 0, 0.4);
+      }
+      #beacon-blueprint .bp-ico.cap {
+        background: #6fb6ff;
+      }
+      #beacon-blueprint .bp-ico.core {
+        background: #b06bff;
+      }
+      #beacon-blueprint .bp-ico.pad {
+        background: #ffd98a;
+      }
+      #beacon-blueprint .bp-hint {
+        margin-top: 8px;
+        font-size: 10px;
+        letter-spacing: 1px;
+        color: #7e88b4;
+      }
+
+      /* ── Ending cinematic overlay (ch5 §3f) — letterboxed sequel-hook band ── */
+      #ending {
+        position: fixed;
+        inset: 0;
+        z-index: 30;
+        display: none;
+        pointer-events: none;
+        font-family: 'Segoe UI', system-ui, sans-serif;
+      }
+      #ending.open {
+        display: block;
+      }
+      #ending .bar {
+        position: absolute;
+        left: 0;
+        right: 0;
+        height: 11%;
+        background: #000;
+      }
+      #ending .bar.top {
+        top: 0;
+      }
+      #ending .bar.bottom {
+        bottom: 0;
+      }
+      #ending .caption {
+        position: absolute;
+        left: 50%;
+        bottom: 16%;
+        transform: translateX(-50%);
+        text-align: center;
+        color: #ffd9a8;
+        font:
+          300 22px/1.5 'Segoe UI',
+          system-ui,
+          sans-serif;
+        letter-spacing: 4px;
+        text-shadow: 0 2px 12px #000;
+      }
+      #ending .skip {
+        position: absolute;
+        right: 24px;
+        bottom: 13%;
+        color: rgba(220, 226, 255, 0.6);
+        font-size: 11px;
+        letter-spacing: 2px;
+      }
+
     </style>
   </head>
   <body>
@@ -586,6 +693,21 @@
         <div class="progress" id="decode-progress"></div>
         <button class="submit" id="decode-submit" type="button">SUBMIT</button>
       </div>
+    </div>
+
+    <div id="beacon-blueprint">
+      <h3>BEACON BLUEPRINT</h3>
+      <div class="bp-row"><span class="bp-ico cap"></span>Antenna cap ×1</div>
+      <div class="bp-row"><span class="bp-ico core"></span>Beacon-core ×6</div>
+      <div class="bp-row"><span class="bp-ico pad"></span>Launchpad ×1 (on ground)</div>
+      <div class="bp-hint">Stack pad → 6 cores → antenna. [B] hide</div>
+    </div>
+
+    <div id="ending">
+      <div class="bar top"></div>
+      <div class="bar bottom"></div>
+      <div class="caption">A SIGNAL ANSWERED — SOMETHING IS LISTENING</div>
+      <div class="skip">PRESS ANY KEY TO SKIP</div>
     </div>
 
     <div id="stats">

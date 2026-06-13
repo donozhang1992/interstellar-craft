@@ -51,10 +51,16 @@ export const COUNTER_PUZZLES = 'puzzlesSolved';
 export const COUNTER_CAVE_DEPTH = 'caveDepthReached';
 /** ch3 `harvest`: +1 each time a crystal(4) block is mined into the inventory. */
 export const COUNTER_COLLECTED_CRYSTAL = 'collected:crystal';
+/** ch5 `charge`: +1 each time a crystal(4) is inserted into a valid beacon ([E]). */
+export const COUNTER_BEACON_CHARGE = 'beaconCharge';
 
 /** Flags raised from gameplay (frozen by chapters.ts predicates). */
 export const FLAG_SALVAGED = 'salvaged';
 export const FLAG_ANTENNA_BUILT = 'antennaBuilt';
+/** ch4 `beacon`: set once validateBeacon(world) is satisfied after a placement. */
+export const FLAG_BEACON_VALID = 'beaconValid';
+/** ch5 `ignite`: set by the [E] ignite interaction once beaconCharge >= 8. */
+export const FLAG_IGNITED = 'ignited';
 
 /** ch1 salvage grant (M3 decision: flavor bonus atop the kept starter kit). */
 const SALVAGE_GRANT: ReadonlyArray<readonly [string, number]> = [
@@ -67,6 +73,10 @@ export class QuestBridge {
   workbenchUnlocked = false;
   /** True once ch2 decode unlocked the scanner (drives the ore highlight). */
   scannerUnlocked = false;
+  /** True once ch4 beacon unlocked the fusion igniter (gates ch5 charge/ignite). */
+  fusionIgniterUnlocked = false;
+  /** True once ch5 ignite unlocked free mode (ungates flight + all blocks). */
+  freeModeUnlocked = false;
   /** Last objective string pushed through onTransition (dedup transitions). */
   private lastObjective: string;
 
@@ -118,13 +128,17 @@ export class QuestBridge {
     }
   }
 
-  /** One-shot unlock effect dispatch (workbench grant, scanner flag). */
+  /** One-shot unlock effect dispatch (workbench grant, scanner/igniter/free-mode flags). */
   private fireUnlock(id: string): void {
     if (id === 'workbench') {
       this.workbenchUnlocked = true;
       for (const [itemId, count] of SALVAGE_GRANT) this.effects.grant(itemId, count);
     } else if (id === 'scanner') {
       this.scannerUnlocked = true;
+    } else if (id === 'fusion_igniter') {
+      this.fusionIgniterUnlocked = true;
+    } else if (id === 'free_mode') {
+      this.freeModeUnlocked = true;
     }
     this.effects.onUnlock(id);
   }
