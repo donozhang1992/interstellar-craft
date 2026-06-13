@@ -208,6 +208,30 @@ test.describe('game page (seed 0x7e, hooks-driven)', () => {
     }, POSES.mine);
     await expect(page).toHaveScreenshot('mining-progress.png');
   });
+
+  /** p. (M3.3) Decode panel overlay — ch2 step2 (GAME_DESIGN §3c). Fast-forward
+   *  the quest to the decode step via hooks, open the panel with [P] (pauses the
+   *  sim like the crafting overlay), and fill the cross glyph's centre column on
+   *  the editable panel so the shot pins the target/panel grids, the n/3 progress
+   *  line and SUBMIT. The frame under the overlay is the deterministic HUD pose;
+   *  the panel is pure DOM so it baselines like the crafting overlay. */
+  test('p. decode panel — target + editable glyph grids (sim paused)', async ({ page }) => {
+    await shoot(page, POSES.hud);
+    await page.evaluate(() => {
+      const g = window.__game!;
+      g.addCounter!('moveTicks', 30);
+      g.addCounter!('mined:regolith', 10);
+      g.addCounter!('placed', 5);
+      g.setFlag!('salvaged');
+      g.setFlag!('antennaBuilt');
+      g.stepFrames!(1); // engine now on the decode step
+    });
+    await page.keyboard.press('KeyP');
+    await expect(page.locator('#decode')).toHaveClass(/open/);
+    // Fill the cross glyph's centre column (cells 1,4,7) on the editable panel.
+    for (const c of [1, 4, 7]) await page.locator(`#decode-panel .cell[data-cell="${c}"]`).click();
+    await expect(page).toHaveScreenshot('decode-panel.png');
+  });
 });
 
 test.describe('static demo pages (render once, READY-gated)', () => {
