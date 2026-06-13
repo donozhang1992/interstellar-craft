@@ -39,6 +39,8 @@ import {
   COUNTER_MOVE,
   COUNTER_MINED_REGOLITH,
   COUNTER_PLACED,
+  COUNTER_CAVE_DEPTH,
+  COUNTER_COLLECTED_CRYSTAL,
   FLAG_SALVAGED,
   FLAG_ANTENNA_BUILT,
 } from './quest';
@@ -48,6 +50,10 @@ import type { Hud } from './hud';
 
 /** Regolith block id (GAME_DESIGN §4) — mining one to completion feeds ch1. */
 const REGOLITH_ID = 1;
+/** Crystal block id (GAME_DESIGN §4) — mining one to inventory feeds ch3 harvest. */
+const CRYSTAL_ID = 4;
+/** ch3 `descend` depth gate (§3d): feet y strictly below this = "deep". */
+const CAVE_DEPTH_Y = 20;
 
 /** Max distance (blocks) from the crash pod for the [E] salvage interaction. */
 export const POD_SALVAGE_REACH = 5;
@@ -59,6 +65,8 @@ export class Game {
   paused = false;
   private readonly mining = createMiningState();
   private miningProgress = 0;
+  /** ch3 `descend` latch: raised once feet y first drops below CAVE_DEPTH_Y. */
+  private caveDepthReached = false;
 
   readonly survival: Survival;
   readonly quest: QuestBridge;
@@ -157,6 +165,11 @@ export class Game {
       else if (drop.dropped !== null) this.hud.pickup(drop.dropped);
       // ch1 `mine` beat: a regolith(1) block mined to completion (GAME_DESIGN §3b).
       if (targetBlockId === REGOLITH_ID) this.quest.addCounter(COUNTER_MINED_REGOLITH);
+      // ch3 `harvest` beat: a crystal(4) mined INTO the inventory (GAME_DESIGN §3d).
+      // Only count the drop that actually landed (overflow ⇒ lost ⇒ no credit).
+      if (targetBlockId === CRYSTAL_ID && drop.overflow === 0 && drop.dropped !== null) {
+        this.quest.addCounter(COUNTER_COLLECTED_CRYSTAL);
+      }
     }
     if (mined.refused) this.hud.toast('TOOL TOO WEAK');
 
@@ -183,6 +196,14 @@ export class Game {
     }
 
     stepPlayer(this.player, this.world, step.move, dt);
+
+    // ── ch3 `descend` beat (GAME_DESIGN §3d): the first fixed step the resolved
+    // feet-y drops below CAVE_DEPTH_Y, set caveDepthReached = 1 (a latch — the
+    // counter is one-shot, so re-surfacing/re-descending never bumps it again). ─
+    if (!this.caveDepthReached && this.player.pos.y < CAVE_DEPTH_Y) {
+      this.caveDepthReached = true;
+      this.quest.addCounter(COUNTER_CAVE_DEPTH);
+    }
 
     // ── Survival (M2.3): one stepSurvival after movement so fall damage reads
     // the post-resolve onGround/pos. `mining` for energy drain = a held mine

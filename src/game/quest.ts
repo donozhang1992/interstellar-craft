@@ -47,6 +47,10 @@ export const COUNTER_MOVE = 'moveTicks';
 export const COUNTER_MINED_REGOLITH = 'mined:regolith';
 export const COUNTER_PLACED = 'placed';
 export const COUNTER_PUZZLES = 'puzzlesSolved';
+/** ch3 `descend`: set to 1 the first time the player's feet drop below y=20. */
+export const COUNTER_CAVE_DEPTH = 'caveDepthReached';
+/** ch3 `harvest`: +1 each time a crystal(4) block is mined into the inventory. */
+export const COUNTER_COLLECTED_CRYSTAL = 'collected:crystal';
 
 /** Flags raised from gameplay (frozen by chapters.ts predicates). */
 export const FLAG_SALVAGED = 'salvaged';
