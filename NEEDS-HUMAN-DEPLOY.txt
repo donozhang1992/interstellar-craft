@@ -1,0 +1,17 @@
+INTERSTELLAR CRAFT -- Manual Deploy Steps
+==========================================
+
+1. GITHUB PAGES
+   - Push .github/workflows/deploy.yml (already committed on main)
+   - Go to repo Settings -> Pages -> Source: GitHub Actions
+   - The next push to main will trigger the workflow and publish
+   - URL: https://donozhang1992.github.io/interstellar-craft/
+
+2. ITCH.IO
+   - Run: bash scripts/pack-itch.sh
+   - Upload interstellar-craft.zip at https://itch.io/game/new (manual)
+   - Set as HTML5 game, width 1280, height 720
+
+3. POST-DEPLOY CHECK
+   - Visit the GH Pages URL and confirm the game loads
+   - Run through ch1 to confirm save/load works on the hosted build
