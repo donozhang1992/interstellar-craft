@@ -30,6 +30,14 @@ import type { DeathCache } from './survival';
 import { UNLOCKED_CHAPTER } from './chapters';
 import type { InputPartial } from './input';
 import type { Game } from './loop';
+import { isSaveError } from '../core/save/serialize';
+import {
+  gameSave,
+  gameLoad,
+  hasSave as hasSaveFn,
+  clearSave as clearSaveFn,
+  exportSaveFile,
+} from './saveService';
 
 /** Which survival stat `setStat` targets. */
 export type SurvivalStat = 'hp' | 'o2' | 'energy';
@@ -94,6 +102,17 @@ export interface GameHooks {
   ending?(): { active: boolean; done: boolean } | null;
   /** Skip/dismiss the ending cinematic if playing — installed by main.ts. M4.3b. */
   skipEnding?(): void;
+  // M5.1 save hooks
+  /** Serialize game state and write to localStorage. */
+  save?(): void;
+  /** Load from localStorage and restore state. Returns false if no save or error. */
+  load?(): boolean;
+  /** True if localStorage has a save. */
+  hasSave?(): boolean;
+  /** Remove the localStorage save. */
+  clearSave?(): void;
+  /** Download the save as a JSON file. */
+  exportSave?(): void;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -147,6 +166,17 @@ export function installHooks(game: Game): GameHooks {
     freeMode: () => game.freeMode,
     // playEnding / ending / skipEnding are installed by main.ts (outside __TEST__)
     // when the ending controller exists; left undefined under the baseline harness.
+    // M5.1 save hooks
+    save: () => gameSave(game),
+    load: () => {
+      const result = gameLoad();
+      if (isSaveError(result)) return false;
+      game.load(result);
+      return true;
+    },
+    hasSave: () => hasSaveFn(),
+    clearSave: () => clearSaveFn(),
+    exportSave: () => exportSaveFile(game),
   };
   window.__game = hooks;
   return hooks;

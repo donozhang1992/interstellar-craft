@@ -22,6 +22,7 @@ import { createCrystalBeetle } from './render/crystalBeetle';
 import { createBeetle, stepBeetle } from './core/entity/beetle';
 import { createWreckedDrone } from './render/wreckedDrone';
 import { createEndingCinematic } from './render/ending';
+import { voxelLinearIndex } from './core/save/worldDiff';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -93,7 +94,7 @@ input.attach({
   overlay: document.getElementById('overlay'),
 });
 
-const game = new Game(world, player, inv, scene, input, hud);
+const game = new Game(world, player, inv, scene, input, hud, WORLD_SEED);
 
 // Observer Jelly (GAME_DESIGN §8) — a diegetic floating guide. Added ONLY outside
 // the visual-baseline harness (__TEST__): it is a moving emissive scene object, so
@@ -233,7 +234,11 @@ addEventListener('keydown', (e) => {
     game.survival.useCanister();
   } else if (e.code === 'KeyG') {
     const placed = game.survival.useFlare();
-    if (placed) scene.worldMeshes.markDirtyAt(placed.x, placed.y, placed.z);
+    if (placed) {
+      // Flare lamp is a gameplay edit — record it in the save worldDiff.
+      game.worldDiff.set(voxelLinearIndex(world, placed.x, placed.y, placed.z), 6); // BlockId.Lamp
+      scene.worldMeshes.markDirtyAt(placed.x, placed.y, placed.z);
+    }
   } else if (e.code === 'KeyR') {
     // Repair the wrecked drone when in reach (2 copper + 1 crystal).
     if (game.repairWreckedDrone()) hud.toast('DRONE ONLINE');
