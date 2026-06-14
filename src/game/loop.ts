@@ -43,6 +43,7 @@ import {
 } from '../core/entity/drone';
 import { take, count as invCount } from '../core/player/inventory';
 import { placeBlock, raycastFromPlayer } from './edits';
+import { voxelLinearIndex, type WorldDiff } from '../core/save/worldDiff';
 import {
   QuestBridge,
   COUNTER_MOVE,
@@ -107,6 +108,15 @@ export class Game {
    */
   beaconPos: { x: number; z: number } | null = null;
 
+  /**
+   * Sparse map of player-edited voxels (linear index → blockId) — the save
+   * `worldDiff` (TECH_SPEC §4). Every gameplay setBlock records here so a save
+   * never serializes the full 96×81×96 world; on load the seed world regenerates
+   * and this diff re-applies. An edit that restores a cell to its generated value
+   * is still recorded (cheap; the diff stays correct, just not minimal).
+   */
+  readonly worldDiff: WorldDiff = new Map();
+
   readonly survival: Survival;
   readonly quest: QuestBridge;
   /** Crash-pod marker cell (= spawn column feet); the [E] salvage anchor. */
@@ -153,6 +163,12 @@ export class Game {
     readonly scene: GameScene,
     readonly input: InputController,
     readonly hud: Hud,
+    /**
+     * World seed (the value passed to generateWorld). Stored so a save can
+     * regenerate the exact terrain and re-apply the worldDiff on load. Defaults
+     * to 0 for tests/constructors that don't care about save/load.
+     */
+    readonly seed: number = 0,
   ) {
     this.survival = new Survival(player, inv, world);
     this.podPos = { x: player.pos.x, y: player.pos.y, z: player.pos.z };
@@ -290,6 +306,18 @@ export class Game {
     return def.kind === 'tool' && def.toolTier !== undefined ? def.toolTier : 'hand';
   }
 
+  /**
+   * Apply a gameplay edit: write the block, record it in `worldDiff`, and mark
+   * the chunk mesh dirty. The single funnel for every player-caused setBlock
+   * (mine, place, flare place/expire) so the save's sparse worldDiff is always
+   * complete. Out-of-bounds writes are a world no-op (and recorded harmlessly).
+   */
+  recordEdit(x: number, y: number, z: number, id: number): void {
+    this.world.setBlock(x, y, z, id);
+    this.worldDiff.set(voxelLinearIndex(this.world, x, y, z), id);
+    this.scene.worldMeshes.markDirtyAt(x, y, z);
+  }
+
   /** Advance the simulation one fixed step (edits first, then movement). */
   stepSim(dt: number): void {
     const step = this.input.consumeStep();
@@ -318,8 +346,7 @@ export class Game {
     this.miningProgress = mined.progress;
     if (mined.completed && hit) {
       const { x, y, z } = hit.hit;
-      this.world.setBlock(x, y, z, 0);
-      this.scene.worldMeshes.markDirtyAt(x, y, z);
+      this.recordEdit(x, y, z, 0);
       const drop = applyMiningDrop(this.inv, targetBlockId);
       if (drop.overflow > 0) this.hud.toast('INVENTORY FULL');
       else if (drop.dropped !== null) this.hud.pickup(drop.dropped);
@@ -339,6 +366,8 @@ export class Game {
       if (edited) {
         s.count--;
         if (s.count === 0) this.inv.slots[this.inv.activeHotbarSlot] = null;
+        // placeBlock already wrote the voxel; record the diff + mark dirty.
+        this.worldDiff.set(voxelLinearIndex(this.world, edited.x, edited.y, edited.z), def.blockId);
         this.scene.worldMeshes.markDirtyAt(edited.x, edited.y, edited.z);
         this.quest.addCounter(COUNTER_PLACED);
         if (!this.quest.state.flags[FLAG_ANTENNA_BUILT] && validateAntenna(this.world)) {
@@ -383,7 +412,11 @@ export class Game {
       },
       dt,
     );
-    for (const c of cleared) this.scene.worldMeshes.markDirtyAt(c.x, c.y, c.z);
+    // Flare-expiry clears (survival set the voxel to air) are gameplay edits too.
+    for (const c of cleared) {
+      this.worldDiff.set(voxelLinearIndex(this.world, c.x, c.y, c.z), 0);
+      this.scene.worldMeshes.markDirtyAt(c.x, c.y, c.z);
+    }
 
     const { forward, back, left, right } = step.move;
     if (forward || back || left || right) this.quest.addCounter(COUNTER_MOVE);
