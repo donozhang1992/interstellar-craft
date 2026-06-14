@@ -1,23 +1,34 @@
-# INTERSTELLAR CRAFT
+﻿# INTERSTELLAR CRAFT
 
 ![Cinematic trailer — Gargantua over KIPP-7e](docs/media/trailer.webp)
 
-*30-second in-engine cinematic trailer, rendered frame-by-frame in the browser
-([how it was made](prototype/)).*
+A story-driven voxel mining game set on a planet orbiting the **Gargantua** black
+hole. You are an engineer stranded on KIPP-7e. Mine, craft, and raise a signal
+beacon to answer a mysterious pulse from a distant green world — before the silence
+answers first.
 
-A story-driven voxel mining & building game in the browser. You are an engineer
-stranded on a planet orbiting the supermassive black hole **Gargantua**. Mine,
-craft, and raise a signal beacon to answer a mysterious pulse from a distant green
-world — before the silence answers first.
+**Play online:** https://donozhang1992.github.io/interstellar-craft/ *(after GH Pages deploy)*
 
-- 🕳️ Physically-based black hole sky — real-time Schwarzschild geodesic ray tracing
-- ⛏️ Minecraft-style voxel mining, crafting, and building
-- 🧭 5-chapter story campaign (~40–60 min) + free build mode
-- 🫁 Survival against the environment: oxygen, energy, darkness — no combat
-- 🌐 Pure web: Three.js + TypeScript, no install
+- Physically-based black hole sky — real-time Schwarzschild geodesic ray tracing
+- Minecraft-style voxel mining, crafting, and building
+- 5-chapter story campaign (~40-60 min) + free build mode after the ending
+- Survival: oxygen, energy, darkness — no combat
+- Pure web: Three.js + TypeScript, no install
 
-> **Status: in development.** The playable prototype and the 30-second cinematic
-> trailer renderer that started this project live in [`prototype/`](prototype/).
+## Controls
+
+| Key | Action |
+|-----|--------|
+| WASD | Move |
+| Space | Jump / Jump-pack hover (when equipped) |
+| Mouse | Look (pointer lock) |
+| LMB hold | Mine block |
+| RMB | Place block |
+| 1–8 | Hotbar slots |
+| E | Interact (salvage pod, ignite beacon) |
+| Tab / I | Inventory + crafting overlay |
+| F | Toggle flight (free mode only) |
+| Esc | Pause / settings |
 
 ## Quick start
 
@@ -27,12 +38,10 @@ npm run dev      # play at http://localhost:5173
 npm run ci       # typecheck + lint + unit + e2e (full gate)
 ```
 
-### Run the legacy prototype
+## Build for web
 
 ```bash
-python -m http.server 5181
-# → http://localhost:5181/prototype/index.html        (playable prototype)
-# → http://localhost:5181/prototype/trailer.html      (trailer renderer)
+VITE_BASE=/interstellar-craft/ npm run build   # produces dist/
 ```
 
 ## Project structure
@@ -40,7 +49,7 @@ python -m http.server 5181
 ```
 src/core/      pure game logic (deterministic, fully unit-tested)
 src/render/    Three.js rendering (chunk mesher, black hole, post FX)
-src/game/      input, main loop, save system
+src/game/      input, main loop, save system, audio
 tests/         Vitest unit + Playwright e2e + visual baselines
 docs/          design docs, tech spec, roadmap, agent protocol
 prototype/     original single-file game + cinematic trailer pipeline
@@ -48,9 +57,9 @@ prototype/     original single-file game + cinematic trailer pipeline
 
 ## Development
 
-This game is developed evidence-first (TDD + Playwright visual regression) by a
-multi-agent AI workflow under human direction — see
-[docs/AGENT_RULES.md](docs/AGENT_RULES.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+Evidence-first (TDD + Playwright visual regression) multi-agent AI workflow under
+human direction. See [docs/AGENT_RULES.md](docs/AGENT_RULES.md) and
+[docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 
