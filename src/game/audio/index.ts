@@ -258,7 +258,8 @@ export class AudioManager {
     const osc = ctx.createOscillator();
     osc.type = type;
     osc.frequency.setValueAtTime(freq, t0);
-    if (endFreq !== freq) osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), t0 + dur);
+    if (endFreq !== freq)
+      osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), t0 + dur);
     const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(peak, t0 + 0.004);
