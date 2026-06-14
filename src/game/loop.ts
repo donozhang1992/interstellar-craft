@@ -43,7 +43,13 @@ import {
 } from '../core/entity/drone';
 import { take, count as invCount } from '../core/player/inventory';
 import { placeBlock, raycastFromPlayer } from './edits';
-import { voxelLinearIndex, type WorldDiff } from '../core/save/worldDiff';
+import {
+  voxelLinearIndex,
+  voxelFromLinearIndex,
+  diffFromJSON,
+  type WorldDiff,
+} from '../core/save/worldDiff';
+import type { SaveV1 } from '../core/save/serialize';
 import {
   QuestBridge,
   COUNTER_MOVE,
@@ -457,6 +463,53 @@ export class Game {
   stepFrames(n: number): void {
     for (let i = 0; i < n; i++) if (!this.paused) this.stepSim(PHYS.FIXED_DT);
     this.renderFrame();
+  }
+
+  /**
+   * Restore all live game state from a deserialized save (M5.1).
+   * Deep-copies every plain-data field so the save object is not aliased
+   * into the live state. Reapplies the worldDiff to the world and marks
+   * all dirty chunks so the next render reflects the loaded terrain.
+   */
+  load(save: SaveV1): void {
+    // Deep copy via JSON — all save fields are plain JSON-safe data.
+    const deepCopy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+    // Restore player (pos, vel, yaw, pitch, onGround, flying, spawn).
+    Object.assign(this.player, deepCopy(save.player));
+
+    // Restore survival state.
+    Object.assign(this.survival.state, deepCopy(save.survival));
+
+    // Restore quest state and refresh the HUD objective.
+    Object.assign(this.quest.state, deepCopy(save.quest));
+    this.hud.setObjective(this.quest.objective());
+
+    // Restore inventory (slots array + activeHotbarSlot).
+    const savedInv = deepCopy(save.inventory);
+    // Replace slot array contents in-place (inv.slots is a mutable array).
+    this.inv.slots.splice(0, this.inv.slots.length, ...savedInv.slots);
+    this.inv.activeHotbarSlot = savedInv.activeHotbarSlot;
+
+    // Restore worldDiff: clear then repopulate from the saved pair array.
+    this.worldDiff.clear();
+    const loadedDiff = diffFromJSON(save.worldDiff);
+    for (const [idx, blockId] of loadedDiff) {
+      this.worldDiff.set(idx, blockId);
+      // Re-apply the edit to the world and mark the chunk dirty.
+      const { x, y, z } = voxelFromLinearIndex(this.world, idx);
+      this.world.setBlock(x, y, z, blockId);
+      this.scene.worldMeshes.markDirtyAt(x, y, z);
+    }
+
+    // Reset transient mining state (we're at a potentially different position).
+    Object.assign(this.mining, createMiningState());
+    this.miningProgress = 0;
+
+    // Reset session-scoped fields that don't belong to a persistent state.
+    this.beaconPos = null;
+    this.caveDepthReached = false;
+    this.hoverUsed = 0;
   }
 
   /** Start the rAF loop. */
