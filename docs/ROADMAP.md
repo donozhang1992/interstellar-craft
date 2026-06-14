@@ -131,27 +131,11 @@ GitHub Pages deploy (`vite build` + actions workflow); itch.io-ready zip.
 **Exit**: all budgets green in CI · cold-start full playthrough on clean profile ·
 Pages URL live · README updated with gameplay GIF.
 
-### M5 IN-PROGRESS CHECKPOINT (2026-06-14, paused for token budget)
-main at `f801ed0` (clean, pushed). M0–M4 done. M5 partially started; **two dev
-agents died when the session paused — their committed work is on branches, partial
-+ unverified + unmerged**:
-- **`task/m5-save` (M5.1 save/load) @ `bfd33e6`** (pushed to origin) — deliverables
-  ESSENTIALLY COMPLETE: worldDiff sparse capture + serialize unit tests, saveService
-  (localStorage `ic-save-v1` + file I/O), Game.save()/load(), hooks (save/load/
-  hasSave/clearSave/exportSave), 7 e2e save-lifecycle tests. **Remaining**: `npm run
-  ci` green in the worktree → control-plane merge to main + push (fix first if red).
-- **`task/m5-audio` (M5.3 audio) @ `c613b71`** (pushed to origin) — deliverables
-  ESSENTIALLY COMPLETE: AudioManager (synth cues, lazy ctx, mute-by-default,
-  `__TEST__` no-op), event-seam triggers, ending cue, hooks, docs/CREDITS.md, e2e.
-  **Remaining**: `npm run ci` green → merge to main + push (fix first if red).
-- **`task/m5-save` and `task/m5-audio` worktrees still exist** under `.worktrees/`
-  (npm installed). On resume: in each, `git status` (discard stray per AGENT_RULES §9),
-  then EITHER dispatch an agent to FINISH the remaining deliverables from the partial
-  commits, OR discard the branch and redo cleanly. Verify (CP or adversarial) → merge.
-- **M5.2** (pause menu + settings + title; uses M5.1 save API) and **M5.4** (Pages
-  deploy + README GIF + itch zip + perf pass) NOT STARTED. M5.2 after M5.1 merges.
-- Resume via a FRESH session + the self-contained M5 resume prompt (don't drag the old
-  giant conversation). budget-guard skill + this checkpoint + git = full context.
+### M5 Status
+| Date | Event |
+|------|-------|
+| 2026-06-14 | M5.1 save/load merged (db51c40, CP verified): worldDiff sparse capture, saveService (localStorage ic-save-v1 + file I/O), Game.save()/load(), 5 save hooks, 7 e2e save-lifecycle tests. 82 ci passed post-merge. |
+| 2026-06-14 | M5.3 audio merged (bf7f9e6, CP verified): AudioManager (synth cues: mine/place/chime/ending/ambient/o2-heartbeat), lazy ctx, mute-by-default, __TEST__ no-op. CREDITS.md. 82 ci passed post-merge. Manual conflict resolution on hooks.ts/loop.ts/main.ts (combined save+audio changes). |
 
 ## Status Log
 
