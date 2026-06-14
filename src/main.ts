@@ -22,9 +22,13 @@ import { createCrystalBeetle } from './render/crystalBeetle';
 import { createBeetle, stepBeetle } from './core/entity/beetle';
 import { createWreckedDrone } from './render/wreckedDrone';
 import { createEndingCinematic } from './render/ending';
+import { AudioManager } from './game/audio';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
+
+/** O₂ low-warning threshold (matches the HUD's O2_LOW, GAME_DESIGN §10/§11). */
+const O2_LOW_WARN = 25;
 
 const app = document.getElementById('app');
 if (!app) throw new Error('missing #app mount point');
@@ -95,6 +99,15 @@ input.attach({
 
 const game = new Game(world, player, inv, scene, input, hud);
 
+// Audio (M5.3, GAME_DESIGN §11) — procedurally synthesized SFX, no asset bytes.
+// The AudioManager is a NO-OP under __TEST__ (never builds an AudioContext), so
+// e2e/visual baselines stay deterministic + silent. It is muted/uninitialized
+// until the first user gesture (autoplay policy) — see the gesture listener below.
+// Discrete cues route through game.onCue (mine/place/chime); the ending cue fires
+// off the ignite path; the O₂ heartbeat + ambient drone are driven per frame.
+const audio = new AudioManager();
+game.onCue = (name) => audio.play(name);
+
 // Observer Jelly (GAME_DESIGN §8) — a diegetic floating guide. Added ONLY outside
 // the visual-baseline harness (__TEST__): it is a moving emissive scene object, so
 // adding it under __TEST__ would change the byte-identical world/sky baselines. In
@@ -142,6 +155,15 @@ if (!window.__TEST__) {
   };
 
   game.onRender = (dt) => {
+    // M5.3 audio per-frame: ambient drone runs whenever audio is live; the O₂
+    // low-warning heartbeat loops while O₂ < 25 and stops once it recovers. Both
+    // are no-ops until the first gesture resumes the context (and under __TEST__,
+    // where this onRender is never installed at all).
+    if (audio.initialized) {
+      audio.startDrone();
+      if (game.survival.state.o2 < O2_LOW_WARN) audio.startHeartbeat();
+      else audio.stopHeartbeat();
+    }
     // ch1: hover near the pod; ch2+: lift toward a "raise the mast" beacon point.
     const ch2 = game.quest.state.chapter >= 2;
     jelly.setTarget(player.pos.x + 3, ch2 ? player.pos.y + 8 : player.pos.y + 2, player.pos.z - 3);
