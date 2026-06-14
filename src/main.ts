@@ -23,9 +23,13 @@ import { createBeetle, stepBeetle } from './core/entity/beetle';
 import { createWreckedDrone } from './render/wreckedDrone';
 import { createEndingCinematic } from './render/ending';
 import { voxelLinearIndex } from './core/save/worldDiff';
+import { AudioManager } from './game/audio';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
+
+/** O₂ low-warning threshold (matches the HUD's O2_LOW, GAME_DESIGN §10/§11). */
+const O2_LOW_WARN = 25;
 
 const app = document.getElementById('app');
 if (!app) throw new Error('missing #app mount point');
@@ -96,6 +100,15 @@ input.attach({
 
 const game = new Game(world, player, inv, scene, input, hud, WORLD_SEED);
 
+// Audio (M5.3, GAME_DESIGN §11) — procedurally synthesized SFX, no asset bytes.
+// The AudioManager is a NO-OP under __TEST__ (never builds an AudioContext), so
+// e2e/visual baselines stay deterministic + silent. It is muted/uninitialized
+// until the first user gesture (autoplay policy) — see the gesture listener below.
+// Discrete cues route through game.onCue (mine/place/chime); the ending cue fires
+// off the ignite path; the O₂ heartbeat + ambient drone are driven per frame.
+const audio = new AudioManager();
+game.onCue = (name) => audio.play(name);
+
 // Observer Jelly (GAME_DESIGN §8) — a diegetic floating guide. Added ONLY outside
 // the visual-baseline harness (__TEST__): it is a moving emissive scene object, so
 // adding it under __TEST__ would change the byte-identical world/sky baselines. In
@@ -143,6 +156,15 @@ if (!window.__TEST__) {
   };
 
   game.onRender = (dt) => {
+    // M5.3 audio per-frame: ambient drone runs whenever audio is live; the O₂
+    // low-warning heartbeat loops while O₂ < 25 and stops once it recovers. Both
+    // are no-ops until the first gesture resumes the context (and under __TEST__,
+    // where this onRender is never installed at all).
+    if (audio.initialized) {
+      audio.startDrone();
+      if (game.survival.state.o2 < O2_LOW_WARN) audio.startHeartbeat();
+      else audio.stopHeartbeat();
+    }
     // ch1: hover near the pod; ch2+: lift toward a "raise the mast" beacon point.
     const ch2 = game.quest.state.chapter >= 2;
     jelly.setTarget(player.pos.x + 3, ch2 ? player.pos.y + 8 : player.pos.y + 2, player.pos.z - 3);
@@ -214,7 +236,10 @@ if (beaconBlueprint) game.onBlueprint = () => beaconBlueprint.refresh();
 const endingRoot = document.getElementById('ending');
 const ending = endingRoot ? createEndingCinematic(scene.renderer, endingRoot) : null;
 if (ending) {
-  game.onIgnite = () => ending.play();
+  game.onIgnite = () => {
+    ending.play();
+    audio.play('ending');
+  };
 }
 
 // M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
@@ -224,6 +249,7 @@ if (ending) {
 // the wrecked drone (M4.3a §3e); P = open the decode panel directly; B = toggle
 // the beacon blueprint (ch4). Suppressed while an overlay is open. Edge-triggered.
 addEventListener('keydown', (e) => {
+  audio.resume(); // initialize AudioContext on first gesture (autoplay policy)
   // The ending cinematic swallows any key as a SKIP while it is playing.
   if (ending?.isPlaying) {
     ending.skip();
@@ -298,6 +324,11 @@ if (import.meta.env.DEV || import.meta.env.VITE_TEST_HOOKS === '1') {
   hooks.playEnding = () => ending?.play();
   hooks.skipEnding = () => ending?.skip();
   hooks.ending = () => (ending ? { active: ending.isPlaying, done: ending.isDone } : null);
+  // M5.3 audio hooks — installed here (outside __TEST__ via installHooks guard)
+  // so the settings UI / tests can inspect and drive audio state.
+  hooks.audio = () => audio.state();
+  hooks.muteAudio = (on) => audio.mute(on);
+  hooks.setVolume = (v) => audio.setMasterVolume(v);
   hooks.READY = true;
 }
 window.READY = true;

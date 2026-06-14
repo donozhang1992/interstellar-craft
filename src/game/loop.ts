@@ -149,6 +149,13 @@ export class Game {
   /** Optional per-rendered-frame visual updater (Observer Jelly bob/homing). */
   onRender: ((dtSeconds: number) => void) | null = null;
   /**
+   * Optional discrete sound-cue sink (M5.3). Fired at gameplay seams (mining
+   * completion → 'mine', block place → 'place', quest unlock → 'chime'). main.ts
+   * installs it (outside __TEST__) to drive the AudioManager; left null under
+   * __TEST__ so the audio graph never spins up in headless. Pure event, no clock.
+   */
+  onCue: ((name: 'mine' | 'place' | 'chime') => void) | null = null;
+  /**
    * Optional per-rendered-frame DOM hint refresher (M4.3b beacon blueprint panel).
    * Pure DOM, no clock — installed only outside __TEST__ (main.ts) so the visual
    * baselines, which never reach ch4, render byte-identically without it.
@@ -192,6 +199,7 @@ export class Game {
           free_mode: 'FREE MODE UNLOCKED',
         };
         this.hud.toast(TOASTS[id] ?? `${id.toUpperCase()} UNLOCKED`);
+        this.onCue?.('chime'); // M5.3 quest-complete / unlock chime
         // ch5 free_mode (M4.3b): formally bless free-mode flight (the prototype
         // fly toggle is already ungated, GAME_DESIGN §7 "Flight Core") and grant
         // a creative kit of every placeable block ("all blocks"). The ending
@@ -352,6 +360,7 @@ export class Game {
     this.miningProgress = mined.progress;
     if (mined.completed && hit) {
       const { x, y, z } = hit.hit;
+      this.onCue?.('mine');
       this.recordEdit(x, y, z, 0);
       const drop = applyMiningDrop(this.inv, targetBlockId);
       if (drop.overflow > 0) this.hud.toast('INVENTORY FULL');
@@ -370,6 +379,7 @@ export class Game {
       if (def.kind !== 'block' || def.blockId === undefined) continue;
       const edited = placeBlock(this.world, this.player, def.blockId);
       if (edited) {
+        this.onCue?.('place');
         s.count--;
         if (s.count === 0) this.inv.slots[this.inv.activeHotbarSlot] = null;
         // placeBlock already wrote the voxel; record the diff + mark dirty.
