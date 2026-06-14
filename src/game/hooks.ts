@@ -94,6 +94,16 @@ export interface GameHooks {
   ending?(): { active: boolean; done: boolean } | null;
   /** Skip/dismiss the ending cinematic if playing — installed by main.ts. M4.3b. */
   skipEnding?(): void;
+  /**
+   * Audio state snapshot (volume/muted/ctxState) — installed by main.ts. M5.3.
+   * Under __TEST__ the AudioManager is a no-op so this reports
+   * `{ muted: true, ctxState: 'test', ... }` and no AudioContext is ever created.
+   */
+  audio?(): import('./audio').AudioStateView;
+  /** Set master audio volume 0..1 — installed by main.ts. M5.3. */
+  setVolume?(v: number): void;
+  /** Mute/unmute audio — installed by main.ts. M5.3. */
+  muteAudio?(on: boolean): void;
 }
 
 export function installHooks(game: Game): GameHooks {
