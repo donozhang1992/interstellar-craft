@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -170,7 +170,7 @@
         background: #ffd98a;
       }
 
-      /* ── Inventory + crafting overlay (Tab) — GAME_DESIGN §10 dark panel ── */
+      /* â”€â”€ Inventory + crafting overlay (Tab) â€” GAME_DESIGN Â§10 dark panel â”€â”€ */
       #invcraft {
         position: fixed;
         inset: 0;
@@ -288,7 +288,7 @@
         color: #e08a8a;
       }
 
-      /* ── Survival stat bars (GAME_DESIGN §10) — HP / O₂ / Energy bottom-left ── */
+      /* â”€â”€ Survival stat bars (GAME_DESIGN Â§10) â€” HP / Oâ‚‚ / Energy bottom-left â”€â”€ */
       #stats {
         position: fixed;
         left: 14px;
@@ -336,7 +336,7 @@
       .stat.energy .stat-fill {
         background: linear-gradient(90deg, #ffc24a, #ffd98a);
       }
-      /* O₂ low-warning (< 25): pulse the label + bar so it reads as urgent. */
+      /* Oâ‚‚ low-warning (< 25): pulse the label + bar so it reads as urgent. */
       .stat.o2.low .stat-label {
         color: #ff6b6b;
       }
@@ -358,7 +358,9 @@
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        background: radial-gradient(ellipse at center, rgba(6, 8, 20, 0.82), rgba(0, 0, 0, 0.94));
+        background:
+          url('/docs/media/cover.png') center/cover no-repeat,
+          radial-gradient(ellipse at center, rgba(6, 8, 20, 0.82), rgba(0, 0, 0, 0.94));
         color: #e6e9ff;
         font-family: 'Segoe UI', system-ui, sans-serif;
         cursor: pointer;
@@ -424,7 +426,7 @@
         text-shadow: 0 1px 2px #000;
       }
 
-      /* ── Quest objective line (GAME_DESIGN §10) — one line, top-right ── */
+      /* â”€â”€ Quest objective line (GAME_DESIGN Â§10) â€” one line, top-right â”€â”€ */
       #objective {
         position: fixed;
         right: 16px;
@@ -442,11 +444,11 @@
         text-shadow: 0 1px 3px #000;
       }
       #objective::before {
-        content: '◈ ';
+        content: 'â—ˆ ';
         color: #ffd98a;
       }
 
-      /* ── Story-beat subtitle band (GAME_DESIGN §10, trailer typography) ── */
+      /* â”€â”€ Story-beat subtitle band (GAME_DESIGN Â§10, trailer typography) â”€â”€ */
       #subtitle {
         position: fixed;
         left: 50%;
@@ -467,7 +469,7 @@
         transition: opacity 0.6s ease;
       }
 
-      /* ── Decode panel overlay (ch2 step2, GAME_DESIGN §3c) ── */
+      /* â”€â”€ Decode panel overlay (ch2 step2, GAME_DESIGN Â§3c) â”€â”€ */
       #decode {
         position: fixed;
         inset: 0;
@@ -558,7 +560,7 @@
         background: rgba(255, 217, 138, 0.2);
       }
 
-      /* ── Beacon blueprint panel (ch4, GAME_DESIGN §3d) — passive build hint ── */
+      /* â”€â”€ Beacon blueprint panel (ch4, GAME_DESIGN Â§3d) â€” passive build hint â”€â”€ */
       #beacon-blueprint {
         position: fixed;
         right: 16px;
@@ -616,7 +618,7 @@
         color: #7e88b4;
       }
 
-      /* ── Ending cinematic overlay (ch5 §3f) — letterboxed sequel-hook band ── */
+      /* â”€â”€ Ending cinematic overlay (ch5 Â§3f) â€” letterboxed sequel-hook band â”€â”€ */
       #ending {
         position: fixed;
         inset: 0;
@@ -663,6 +665,132 @@
         font-size: 11px;
         letter-spacing: 2px;
       }
+      /* -- Pause menu overlay (M5.2 Esc key) -- */
+      #pause {
+        position: fixed;
+        inset: 0;
+        z-index: 25;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 3, 8, 0.72);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #e6e9ff;
+      }
+      #pause.open {
+        display: flex;
+      }
+      .pause-panel {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+        padding: 36px 50px;
+        border-radius: 14px;
+        background: rgba(8, 10, 22, 0.94);
+        border: 1px solid rgba(160, 170, 220, 0.3);
+        box-shadow: 0 10px 48px rgba(0, 0, 0, 0.7);
+        min-width: 240px;
+      }
+      .pause-title {
+        margin: 0 0 10px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 6px;
+        color: #9aa3cc;
+      }
+      .pause-btn {
+        width: 100%;
+        font:
+          600 12px/1 'Segoe UI',
+          sans-serif;
+        letter-spacing: 3px;
+        color: #ffd98a;
+        background: rgba(255, 217, 138, 0.07);
+        border: 1px solid rgba(255, 217, 138, 0.4);
+        border-radius: 999px;
+        padding: 10px 24px;
+        cursor: pointer;
+        text-align: center;
+      }
+      .pause-btn:hover {
+        background: rgba(255, 217, 138, 0.18);
+      }
+
+      /* -- Settings panel overlay (M5.2) -- */
+      #settings {
+        position: fixed;
+        inset: 0;
+        z-index: 26;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(2, 3, 8, 0.55);
+        font-family: 'Segoe UI', system-ui, sans-serif;
+        color: #e6e9ff;
+      }
+      #settings.open {
+        display: flex;
+      }
+      .settings-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        padding: 32px 40px;
+        border-radius: 14px;
+        background: rgba(8, 10, 22, 0.96);
+        border: 1px solid rgba(160, 170, 220, 0.3);
+        box-shadow: 0 10px 48px rgba(0, 0, 0, 0.7);
+        min-width: 320px;
+      }
+      .settings-title {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 5px;
+        color: #9aa3cc;
+        text-align: center;
+      }
+      .setting-row {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+      .setting-label {
+        width: 100px;
+        font-size: 11px;
+        letter-spacing: 2px;
+        color: #9aa3cc;
+        flex: 0 0 auto;
+      }
+      .setting-slider {
+        flex: 1;
+        accent-color: #ffd98a;
+        cursor: pointer;
+      }
+      .setting-select {
+        flex: 1;
+        background: rgba(16, 19, 36, 0.9);
+        border: 1px solid rgba(160, 170, 220, 0.35);
+        border-radius: 6px;
+        color: #e6e9ff;
+        padding: 4px 8px;
+        font:
+          12px/1 'Segoe UI',
+          sans-serif;
+        cursor: pointer;
+      }
+      .setting-val {
+        width: 42px;
+        text-align: right;
+        font-size: 12px;
+        color: #ffd98a;
+        letter-spacing: 1px;
+        flex: 0 0 auto;
+      }
+      .settings-close {
+        margin-top: 6px;
+      }
     </style>
   </head>
   <body>
@@ -696,26 +824,33 @@
 
     <div id="beacon-blueprint">
       <h3>BEACON BLUEPRINT</h3>
-      <div class="bp-row"><span class="bp-ico cap"></span>Antenna cap ×1</div>
-      <div class="bp-row"><span class="bp-ico core"></span>Beacon-core ×6</div>
-      <div class="bp-row"><span class="bp-ico pad"></span>Launchpad ×1 (on ground)</div>
-      <div class="bp-hint">Stack pad → 6 cores → antenna. [B] hide</div>
+      <div class="bp-row"><span class="bp-ico cap"></span>Antenna cap Ã—1</div>
+      <div class="bp-row"><span class="bp-ico core"></span>Beacon-core Ã—6</div>
+      <div class="bp-row"><span class="bp-ico pad"></span>Launchpad Ã—1 (on ground)</div>
+      <div class="bp-hint">Stack pad â†’ 6 cores â†’ antenna. [B] hide</div>
     </div>
 
     <div id="ending">
       <div class="bar top"></div>
       <div class="bar bottom"></div>
-      <div class="caption">A SIGNAL ANSWERED — SOMETHING IS LISTENING</div>
+      <div class="caption">A SIGNAL ANSWERED â€” SOMETHING IS LISTENING</div>
       <div class="skip">PRESS ANY KEY TO SKIP</div>
     </div>
 
+    <div id="pause">
+      <!-- content built by PauseMenu.ts -->
+    </div>
+
+    <div id="settings">
+      <!-- content built by PauseMenu.ts -->
+    </div>
     <div id="stats">
       <div class="stat hp" id="stat-hp">
         <span class="stat-label">HP</span>
         <div class="stat-track"><div class="stat-fill" id="stat-hp-fill"></div></div>
       </div>
       <div class="stat o2" id="stat-o2">
-        <span class="stat-label">O₂</span>
+        <span class="stat-label">Oâ‚‚</span>
         <div class="stat-track"><div class="stat-fill" id="stat-o2-fill"></div></div>
       </div>
       <div class="stat energy" id="stat-energy">

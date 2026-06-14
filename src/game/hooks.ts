@@ -1,10 +1,10 @@
-/**
- * Test hooks — TECH_SPEC §3 `window.__game`, installed only in dev/test builds
+﻿/**
+ * Test hooks â€” TECH_SPEC Â§3 `window.__game`, installed only in dev/test builds
  * (`import.meta.env.DEV || VITE_TEST_HOOKS=1`). Playwright drives the game
  * exclusively through these + real key events.
  *
  * M1 scope notes:
- *  - `give(itemId, count)` (TECH_SPEC §3) is live: adds to the REAL player
+ *  - `give(itemId, count)` (TECH_SPEC Â§3) is live: adds to the REAL player
  *    inventory via the core fill rules, returns the overflow (0 = all fit).
  *    Unknown item ids throw RangeError (loud test failures, no silent no-op).
  *  - `craft(recipeId)` crafts atomically at the M1 free-crafting chapter
@@ -13,7 +13,7 @@
  *  - `setInput` semantics: `toggleFly` / `place: true` queue exactly one
  *    action consumed by the next stepped frame; `mine` and the movement
  *    booleans are HELD until overwritten (mine = LMB hold-to-mine);
- *    `slot` selects a hotbar slot 0–7 immediately.
+ *    `slot` selects a hotbar slot 0â€“7 immediately.
  *  - `stepFrames` respects the crafting-overlay pause (loop.ts): with the
  *    overlay open the steps are no-ops (the sim is frozen) but it still
  *    renders once.
@@ -31,6 +31,7 @@ import { UNLOCKED_CHAPTER } from './chapters';
 import type { InputPartial } from './input';
 import type { Game } from './loop';
 import { isSaveError } from '../core/save/serialize';
+import { loadSettings, saveSettings, type GameSettings } from './settings';
 import {
   gameSave,
   gameLoad,
@@ -47,7 +48,7 @@ export interface GameHooks {
   state?: {
     player: PlayerState;
     world: VoxelWorld;
-    /** Live player inventory (40 slots; 0–7 = hotbar). */
+    /** Live player inventory (40 slots; 0â€“7 = hotbar). */
     inv: Inventory;
   };
   /** Advance n fixed 1/60 s steps synchronously, then render once. */
@@ -56,35 +57,35 @@ export interface GameHooks {
   setInput?(partial: InputPartial): void;
   /** Set player position (+ optional view angles), zeroing velocity. */
   teleport?(x: number, y: number, z: number, yaw?: number, pitch?: number): void;
-  /** Add items to the live inventory (TECH_SPEC §3). Returns the overflow. */
+  /** Add items to the live inventory (TECH_SPEC Â§3). Returns the overflow. */
   give?(itemId: string, count: number): number;
   /** Atomic craft at the M1 free-crafting chapter. Returns success. */
   craft?(recipeId: string): boolean;
   /** Single deterministic render of current state (no rAF, no sim step). */
   renderOnce?(): void;
-  /** Draw calls of the most recent render (`renderer.info.render.calls`) — M0.5 perf probe. */
+  /** Draw calls of the most recent render (`renderer.info.render.calls`) â€” M0.5 perf probe. */
   drawCalls?(): number;
-  /** Live survival state (hp/o2/energy). NOTE: respawn REPLACES the object — read fresh. */
+  /** Live survival state (hp/o2/energy). NOTE: respawn REPLACES the object â€” read fresh. */
   survival?(): SurvivalState;
   /** Force a stat to an exact value (clamped 0..max). Test helper (M2.4 death loop). */
   setStat?(stat: SurvivalStat, value: number): void;
-  /** Subtract n HP (clamped ≥ 0). Convenience over setStat for damage scripts. */
+  /** Subtract n HP (clamped â‰¥ 0). Convenience over setStat for damage scripts. */
   damage?(n: number): void;
-  /** The recoverable death-drop caches (M2.3 §12 ④). Live array reference. */
+  /** The recoverable death-drop caches (M2.3 Â§12 â‘£). Live array reference. */
   caches?(): DeathCache[];
-  /** Use one O₂ canister (+40, clamped); returns whether one was consumed. */
+  /** Use one Oâ‚‚ canister (+40, clamped); returns whether one was consumed. */
   useCanister?(): boolean;
   /** Place a flare (60 s emissive marker at the feet); returns the voxel or null. */
   useFlare?(): { x: number; y: number; z: number } | null;
-  /** Live quest state (chapter/step/flags/counters/unlocked). M3.3 — read fresh. */
+  /** Live quest state (chapter/step/flags/counters/unlocked). M3.3 â€” read fresh. */
   quest?(): QuestState;
   /** Current quest objective HUD string (currentObjective). M3.3. */
   questObjective?(): string;
-  /** Raise a quest flag from a test (salvaged/antennaBuilt/…). M3.4 driver. */
+  /** Raise a quest flag from a test (salvaged/antennaBuilt/â€¦). M3.4 driver. */
   setFlag?(name: string): void;
   /** Add n (default 1) to a quest counter from a test. M3.4 driver. */
   addCounter?(key: string, n?: number): void;
-  /** Wrecked-drone state (pos + repaired). M4.3a — read fresh each call. */
+  /** Wrecked-drone state (pos + repaired). M4.3a â€” read fresh each call. */
   drone?(): { pos: [number, number, number]; repaired: boolean };
   /** Attempt to repair the wrecked drone in reach (2 copper + 1 crystal). M4.3a. */
   repairDrone?(): boolean;
@@ -96,11 +97,11 @@ export interface GameHooks {
   beaconCharge?(): number;
   /** True once ch5 free_mode unlocked (creative kit + flight blessing). M4.3b. */
   freeMode?(): boolean;
-  /** Manually fire the ending cinematic (skip-testing) — installed by main.ts. M4.3b. */
+  /** Manually fire the ending cinematic (skip-testing) â€” installed by main.ts. M4.3b. */
   playEnding?(): void;
   /** Ending-sequence state, or null if the controller is not installed. M4.3b. */
   ending?(): { active: boolean; done: boolean } | null;
-  /** Skip/dismiss the ending cinematic if playing — installed by main.ts. M4.3b. */
+  /** Skip/dismiss the ending cinematic if playing â€” installed by main.ts. M4.3b. */
   skipEnding?(): void;
   // M5.1 save hooks
   /** Serialize game state and write to localStorage. */
@@ -114,15 +115,26 @@ export interface GameHooks {
   /** Download the save as a JSON file. */
   exportSave?(): void;
   /**
-   * Audio state snapshot (volume/muted/ctxState) — installed by main.ts. M5.3.
+   * Audio state snapshot (volume/muted/ctxState) â€” installed by main.ts. M5.3.
    * Under __TEST__ the AudioManager is a no-op so this reports
    * `{ muted: true, ctxState: 'test', ... }` and no AudioContext is ever created.
    */
   audio?(): import('./audio').AudioStateView;
-  /** Set master audio volume 0..1 — installed by main.ts. M5.3. */
+  /** Set master audio volume 0..1 â€” installed by main.ts. M5.3. */
   setVolume?(v: number): void;
-  /** Mute/unmute audio — installed by main.ts. M5.3. */
+  /** Mute/unmute audio â€” installed by main.ts. M5.3. */
   muteAudio?(on: boolean): void;
+  // M5.2 pause menu + settings hooks
+  /** Pause the game sim (Esc / pause menu). M5.2. */
+  pause?(): void;
+  /** Resume the game sim (Esc / Resume button). M5.2. */
+  resume?(): void;
+  /** True while the game is pause-menu paused. M5.2. */
+  isPaused?(): boolean;
+  /** Current settings snapshot {volume, mouseSens, renderScale}. M5.2. */
+  getSettings?(): import('./settings').GameSettings;
+  /** Apply partial settings, persist to localStorage, push to runtime. M5.2. */
+  applySettings?(s: Partial<import('./settings').GameSettings>): void;
 }
 
 export function installHooks(game: Game): GameHooks {
@@ -187,6 +199,36 @@ export function installHooks(game: Game): GameHooks {
     hasSave: () => hasSaveFn(),
     clearSave: () => clearSaveFn(),
     exportSave: () => exportSaveFile(game),
+  };
+  // M5.2 pause menu + settings hooks. Installed after the object so the
+  // hooks reference is already assigned. Under __TEST__ these provide minimal
+  // DOM + localStorage behaviour; main.ts overwrites with the full PauseMenu.
+  hooks.pause = () => {
+    game.paused = true;
+    document.getElementById('pause')?.classList.add('open');
+  };
+  hooks.resume = () => {
+    game.paused = false;
+    document.getElementById('pause')?.classList.remove('open');
+  };
+  hooks.isPaused = () => game.paused;
+  // Minimal settings backed by localStorage (no renderer/input side effects).
+  // main.ts overwrites these with the full PauseMenu implementation.
+  const _testSettings: GameSettings = loadSettings();
+  hooks.getSettings = () => ({ ..._testSettings });
+  hooks.applySettings = (s: Partial<GameSettings>) => {
+    if (s.volume !== undefined) _testSettings.volume = Math.max(0, Math.min(1, s.volume));
+    if (s.mouseSens !== undefined)
+      _testSettings.mouseSens = Math.max(0.1, Math.min(3.0, s.mouseSens));
+    if (s.renderScale !== undefined) {
+      const valid: number[] = [0.5, 0.75, 1.0];
+      _testSettings.renderScale = valid.reduce(
+        (best, cand) =>
+          Math.abs(cand - s.renderScale!) < Math.abs(best - s.renderScale!) ? cand : best,
+        _testSettings.renderScale,
+      );
+    }
+    saveSettings(_testSettings);
   };
   window.__game = hooks;
   return hooks;
