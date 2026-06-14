@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Boot — assemble the game (M1.4):
  * worldgen → spawn → inventory (+ sandbox starter kit) → scene → HUD → input →
  * crafting overlay → one expensive black-hole RT pass → first render → test
@@ -24,6 +24,7 @@ import { createWreckedDrone } from './render/wreckedDrone';
 import { createEndingCinematic } from './render/ending';
 import { voxelLinearIndex } from './core/save/worldDiff';
 import { AudioManager } from './game/audio';
+import { PauseMenu } from './game/pauseMenu';
 
 /** World seed — 0x7e is the snapshot-pinned terrain (ROADMAP M0.2a contract). */
 const WORLD_SEED = 0x7e;
@@ -250,6 +251,12 @@ if (ending) {
 // the beacon blueprint (ch4). Suppressed while an overlay is open. Edge-triggered.
 addEventListener('keydown', (e) => {
   audio.resume(); // initialize AudioContext on first gesture (autoplay policy)
+  // Esc: pause/resume toggle (M5.2, TECH_SPEC §8). Edge-triggered, handled
+  // before all other keys so Esc always works even when uiOpen.
+  if (e.code === 'Escape' && !e.repeat) {
+    pauseMenu?.toggle();
+    return;
+  }
   // The ending cinematic swallows any key as a SKIP while it is playing.
   if (ending?.isPlaying) {
     ending.skip();
@@ -315,6 +322,23 @@ scene.blackHole.renderRT();
 
 game.renderFrame(); // first render — READY gates on this (TECH_SPEC §3)
 
+// Pause menu + settings (M5.2). Constructed here (outside __TEST__ guard) so
+// the Esc key handler works in real play. The variable is also accessible to
+// the hooks block below which overwrites the installHooks minimal stubs.
+let pauseMenu: PauseMenu | null = null;
+const pauseEl = document.getElementById('pause');
+const settingsEl = document.getElementById('settings');
+if (pauseEl && settingsEl && !window.__TEST__) {
+  pauseMenu = new PauseMenu({
+    game,
+    input,
+    renderer: scene.renderer,
+    audio,
+    pauseEl,
+    settingsEl,
+  });
+}
+
 if (import.meta.env.DEV || import.meta.env.VITE_TEST_HOOKS === '1') {
   const hooks = installHooks(game);
   // M4.3b ending-cinematic hooks (installed here so the e2e can trigger/inspect/
@@ -324,11 +348,20 @@ if (import.meta.env.DEV || import.meta.env.VITE_TEST_HOOKS === '1') {
   hooks.playEnding = () => ending?.play();
   hooks.skipEnding = () => ending?.skip();
   hooks.ending = () => (ending ? { active: ending.isPlaying, done: ending.isDone } : null);
-  // M5.3 audio hooks — installed here (outside __TEST__ via installHooks guard)
+  // M5.3 audio hooks -- installed here (outside __TEST__ via installHooks guard)
   // so the settings UI / tests can inspect and drive audio state.
   hooks.audio = () => audio.state();
   hooks.muteAudio = (on) => audio.mute(on);
   hooks.setVolume = (v) => audio.setMasterVolume(v);
+  // M5.2 pause menu hooks -- override the minimal stubs from installHooks
+  // with the full PauseMenu when it is available (outside __TEST__).
+  if (pauseMenu) {
+    hooks.pause = () => pauseMenu!.pause();
+    hooks.resume = () => pauseMenu!.resume();
+    hooks.isPaused = () => pauseMenu!.isPaused();
+    hooks.getSettings = () => pauseMenu!.getSettings();
+    hooks.applySettings = (s) => pauseMenu!.applySettings(s);
+  }
   hooks.READY = true;
 }
 window.READY = true;

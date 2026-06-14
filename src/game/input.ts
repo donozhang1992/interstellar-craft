@@ -1,28 +1,28 @@
-/**
- * Keyboard + mouse input — M0 port of prototype/index.html's event wiring,
+﻿/**
+ * Keyboard + mouse input â€” M0 port of prototype/index.html's event wiring,
  * extended for the M1 core loop (hold-to-mine, 8-slot hotbar, crafting UI).
  *
  * Prototype semantics preserved:
  *  - pointer lock requested by clicking the title overlay (and the canvas);
  *    the overlay hides while locked (pointerlockchange);
  *  - mouse look applies at EVENT time: yaw/pitch -= movement * 0.0024,
- *    pitch clamped to ±1.55 (sensitivity/clamp verbatim);
+ *    pitch clamped to Â±1.55 (sensitivity/clamp verbatim);
  *  - KeyF fly toggle is EDGE-triggered (ROADMAP M0.2b contract): `e.repeat`
  *    guarded, queued and consumed by exactly one simulation step;
  *  - ControlLeft ONLY for fly-descend (prototype reads `keys['ControlLeft']`);
  *  - Shift sprint accepts ShiftLeft or ShiftRight (prototype).
  *
- * M1 changes (GAME_DESIGN §4/§12 — intentional behavior change over M0):
+ * M1 changes (GAME_DESIGN Â§4/Â§12 â€” intentional behavior change over M0):
  *  - LMB is now HELD to mine: `mineHeld` is true for every fixed step while
  *    the button is down (released on mouseup AND on pointer-lock exit). The
  *    M0 one-click-one-block path is gone.
  *  - RMB place stays a queued CLICK action (one placement per mousedown).
- *  - Digit1–8 and the wheel select the 8 hotbar slots (was 1–6).
+ *  - Digit1â€“8 and the wheel select the 8 hotbar slots (was 1â€“6).
  *  - `uiOpen` (set by the inventory/crafting overlay) suppresses slot
  *    selection, edit clicks and pointer-lock requests while the overlay is up.
  *
- * `setInput(partial)` (test hooks, TECH_SPEC §3) writes the same state the DOM
- * events write: booleans (`mine` included — it is the LMB hold) are held
+ * `setInput(partial)` (test hooks, TECH_SPEC Â§3) writes the same state the DOM
+ * events write: booleans (`mine` included â€” it is the LMB hold) are held
  * overrides OR-ed with the live key/button map; `toggleFly` / `place: true`
  * queue exactly one action.
  */
@@ -37,7 +37,7 @@ export interface StepInput {
   placeClicks: number;
 }
 
-/** Partial input accepted by window.__game.setInput (TECH_SPEC §3). */
+/** Partial input accepted by window.__game.setInput (TECH_SPEC Â§3). */
 export interface InputPartial {
   forward?: boolean;
   back?: boolean;
@@ -52,7 +52,7 @@ export interface InputPartial {
   mine?: boolean;
   /** true queues exactly one place click. */
   place?: boolean;
-  /** Select hotbar slot 0–7 (applied immediately). */
+  /** Select hotbar slot 0â€“7 (applied immediately). */
   slot?: number;
 }
 
@@ -61,10 +61,11 @@ export interface InputDomTargets {
   overlay: HTMLElement | null;
 }
 
-const SENSITIVITY = 0.0024; // prototype mousemove factor
+/** Base prototype mouse sensitivity — multiplied by the user-set multiplier (M5.2). */
+const SENSITIVITY_BASE = 0.0024;
 const PITCH_LIMIT = 1.55; // prototype clamp
 
-/** Mutable view-angle holder — PlayerState satisfies this structurally. */
+/** Mutable view-angle holder â€” PlayerState satisfies this structurally. */
 export interface LookState {
   yaw: number;
   pitch: number;
@@ -72,6 +73,8 @@ export interface LookState {
 
 export class InputController {
   private readonly keys: Record<string, boolean> = {};
+  /** Current sensitivity multiplier (default 1.0, from settings M5.2). */
+  private sensitivityMult = 1.0;
   private readonly held: InputPartial = {};
   private toggleQueue = 0;
   private leftDown = false;
@@ -94,7 +97,7 @@ export class InputController {
     this.overlayEl = overlay;
     addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
-      // KeyF fly toggle — EDGE-triggered: ignore OS auto-repeat (M0.2b contract)
+      // KeyF fly toggle â€” EDGE-triggered: ignore OS auto-repeat (M0.2b contract)
       if (e.code === 'KeyF' && !e.repeat) this.toggleQueue++;
       if (!this.uiOpen && /^Digit[1-8]$/.test(e.code)) this.selectSlot(+e.code.slice(5) - 1);
     });
@@ -110,14 +113,14 @@ export class InputController {
     overlay?.addEventListener('click', () => this.requestLock());
     canvas.addEventListener('click', () => this.requestLock());
     document.addEventListener('pointerlockchange', () => {
-      if (document.pointerLockElement !== canvas) this.leftDown = false; // lock lost mid-hold ⇒ stop mining
+      if (document.pointerLockElement !== canvas) this.leftDown = false; // lock lost mid-hold â‡’ stop mining
       this.syncTitleOverlay();
     });
     document.addEventListener('mousemove', (e) => {
       if (document.pointerLockElement !== canvas) return;
       // prototype mouse look, applied at event time (sensitivity/clamp verbatim)
-      this.look.yaw -= e.movementX * SENSITIVITY;
-      this.look.pitch -= e.movementY * SENSITIVITY;
+      this.look.yaw -= e.movementX * SENSITIVITY_BASE * this.sensitivityMult;
+      this.look.pitch -= e.movementY * SENSITIVITY_BASE * this.sensitivityMult;
       this.look.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.look.pitch));
     });
 
@@ -133,7 +136,7 @@ export class InputController {
   }
 
   /**
-   * Title overlay (#overlay) visibility — single source of truth. It is hidden
+   * Title overlay (#overlay) visibility â€” single source of truth. It is hidden
    * whenever the player is in play (pointer locked) OR has the inventory/crafting
    * overlay open. The latter is the M1.4 fix: opening Tab releases pointer lock,
    * and the title screen sits at a higher z-index than the crafting UI, so a
@@ -154,7 +157,7 @@ export class InputController {
     if (this.uiOpen || !this.canvas) return;
     const r = this.canvas.requestPointerLock() as unknown;
     if (r && typeof (r as Promise<void>).catch === 'function') {
-      (r as Promise<void>).catch(() => {}); // headless / unfocused — ignore
+      (r as Promise<void>).catch(() => {}); // headless / unfocused â€” ignore
     }
   }
 
@@ -175,6 +178,14 @@ export class InputController {
     ] as const) {
       if (partial[k] !== undefined) this.held[k] = partial[k];
     }
+  }
+
+  /**
+   * Set the mouse sensitivity multiplier (M5.2 settings). Clamped 0.1..3.0.
+   * Applied immediately to subsequent mousemove events.
+   */
+  setSensitivity(mult: number): void {
+    this.sensitivityMult = Math.max(0.1, Math.min(3.0, mult));
   }
 
   /**
