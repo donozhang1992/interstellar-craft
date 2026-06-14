@@ -136,6 +136,8 @@ Pages URL live · README updated with gameplay GIF.
 |------|-------|
 | 2026-06-14 | M5.1 save/load merged (db51c40, CP verified): worldDiff sparse capture, saveService (localStorage ic-save-v1 + file I/O), Game.save()/load(), 5 save hooks, 7 e2e save-lifecycle tests. 82 ci passed post-merge. |
 | 2026-06-14 | M5.3 audio merged (bf7f9e6, CP verified): AudioManager (synth cues: mine/place/chime/ending/ambient/o2-heartbeat), lazy ctx, mute-by-default, __TEST__ no-op. CREDITS.md. 82 ci passed post-merge. Manual conflict resolution on hooks.ts/loop.ts/main.ts (combined save+audio changes). |
+| 2026-06-14 | M5.2 pause menu + settings + title polish merged (0ad4713, CP verified): PauseMenu (Esc toggle, pointer-lock, resume/quit), Settings (vol/sens/scale, localStorage ic-settings-v1), cover.png title background. 13 new e2e tests. 95 ci passed. |
+| 2026-06-14 | M5.4 release prep merged (d5c85ce, CP verified): .github/workflows/deploy.yml (GH Pages), README update, scripts/pack-itch.sh, NEEDS-HUMAN-DEPLOY.txt. vite base path via VITE_BASE env var. Build: 149 KB gzip JS. Perf: 910ms boot, 0.94ms/frame, 115 draw calls — all budgets green. 95 ci passed. **M5 COMPLETE.** |
 
 ## Status Log
 
