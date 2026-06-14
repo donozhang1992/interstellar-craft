@@ -119,9 +119,39 @@ ending visual baselines · sequel-hook shot matches trailer framing.
 
 Audio set; save/load + export; pause/settings (volume, mouse sens, render scale);
 title screen (cover.png art direction); perf pass to budgets; README gameplay GIF;
-GitHub Pages deploy (`vite build` + actions workflow); itch.io-ready zip. **Exit**:
-all budgets green in CI · cold-start full playthrough on clean profile · Pages URL
-live · README updated.
+GitHub Pages deploy (`vite build` + actions workflow); itch.io-ready zip.
+
+| # | Task | Module footprint | Order |
+|---|------|-----------------|-------|
+| 5.1 | Save/load + export JSON (TECH_SPEC §4): serialize {version, seed, player, survival, quest, inventory, worldDiff sparse map}; localStorage `ic-save-v1`; export/import file; load restores deterministically | `src/core/save/**` (pure serialize), `src/game/**` (wire + worldDiff capture), `tests/unit/save/**`, `tests/e2e/**` | first (core) |
+| 5.2 | Pause menu + settings (volume, mouse sensitivity, render scale) + title-screen polish (cover.png art direction) | `src/game/**`, `index.html`, `tests/e2e`, HUD baselines | ∥ 5.3 |
+| 5.3 | Audio set: ambient drone, mining tick, place thock, O₂-low warning, quest-complete chime, ending cue; tiny synthesized or royalty-free ≤200 KB each; `docs/CREDITS.md` | `src/game/audio/**`, `public/audio/**`, `docs/CREDITS.md` | ∥ 5.2 |
+| 5.4 | Release: GitHub Pages deploy (`vite build` + `.github/workflows/deploy.yml`), README gameplay GIF, itch.io zip, final perf pass to budgets | `.github/**`, `README.md`, `vite.config.ts` (base path), `docs/media/**` | last (after 5.1-5.3) |
+
+**Exit**: all budgets green in CI · cold-start full playthrough on clean profile ·
+Pages URL live · README updated with gameplay GIF.
+
+### M5 IN-PROGRESS CHECKPOINT (2026-06-14, paused for token budget)
+main at `f801ed0` (clean, pushed). M0–M4 done. M5 partially started; **two dev
+agents died when the session paused — their committed work is on branches, partial
++ unverified + unmerged**:
+- **`task/m5-save` (M5.1 save/load) @ `bfd33e6`** (pushed to origin) — deliverables
+  ESSENTIALLY COMPLETE: worldDiff sparse capture + serialize unit tests, saveService
+  (localStorage `ic-save-v1` + file I/O), Game.save()/load(), hooks (save/load/
+  hasSave/clearSave/exportSave), 7 e2e save-lifecycle tests. **Remaining**: `npm run
+  ci` green in the worktree → control-plane merge to main + push (fix first if red).
+- **`task/m5-audio` (M5.3 audio) @ `c613b71`** (pushed to origin) — deliverables
+  ESSENTIALLY COMPLETE: AudioManager (synth cues, lazy ctx, mute-by-default,
+  `__TEST__` no-op), event-seam triggers, ending cue, hooks, docs/CREDITS.md, e2e.
+  **Remaining**: `npm run ci` green → merge to main + push (fix first if red).
+- **`task/m5-save` and `task/m5-audio` worktrees still exist** under `.worktrees/`
+  (npm installed). On resume: in each, `git status` (discard stray per AGENT_RULES §9),
+  then EITHER dispatch an agent to FINISH the remaining deliverables from the partial
+  commits, OR discard the branch and redo cleanly. Verify (CP or adversarial) → merge.
+- **M5.2** (pause menu + settings + title; uses M5.1 save API) and **M5.4** (Pages
+  deploy + README GIF + itch zip + perf pass) NOT STARTED. M5.2 after M5.1 merges.
+- Resume via a FRESH session + the self-contained M5 resume prompt (don't drag the old
+  giant conversation). budget-guard skill + this checkpoint + git = full context.
 
 ## Status Log
 
