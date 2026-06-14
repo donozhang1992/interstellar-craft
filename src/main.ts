@@ -235,7 +235,10 @@ if (beaconBlueprint) game.onBlueprint = () => beaconBlueprint.refresh();
 const endingRoot = document.getElementById('ending');
 const ending = endingRoot ? createEndingCinematic(scene.renderer, endingRoot) : null;
 if (ending) {
-  game.onIgnite = () => ending.play();
+  game.onIgnite = () => {
+    ending.play();
+    audio.play('ending');
+  };
 }
 
 // M2.3 consumable use keys (documented in survival.ts): C = O₂ canister (+40),
@@ -245,6 +248,7 @@ if (ending) {
 // the wrecked drone (M4.3a §3e); P = open the decode panel directly; B = toggle
 // the beacon blueprint (ch4). Suppressed while an overlay is open. Edge-triggered.
 addEventListener('keydown', (e) => {
+  audio.resume(); // initialize AudioContext on first gesture (autoplay policy)
   // The ending cinematic swallows any key as a SKIP while it is playing.
   if (ending?.isPlaying) {
     ending.skip();
@@ -315,6 +319,11 @@ if (import.meta.env.DEV || import.meta.env.VITE_TEST_HOOKS === '1') {
   hooks.playEnding = () => ending?.play();
   hooks.skipEnding = () => ending?.skip();
   hooks.ending = () => (ending ? { active: ending.isPlaying, done: ending.isDone } : null);
+  // M5.3 audio hooks — installed here (outside __TEST__ via installHooks guard)
+  // so the settings UI / tests can inspect and drive audio state.
+  hooks.audio = () => audio.state();
+  hooks.muteAudio = (on) => audio.mute(on);
+  hooks.setVolume = (v) => audio.setMasterVolume(v);
   hooks.READY = true;
 }
 window.READY = true;
