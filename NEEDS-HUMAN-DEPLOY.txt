@@ -5,7 +5,7 @@ INTERSTELLAR CRAFT -- Manual Deploy Steps
    - Push .github/workflows/deploy.yml (already committed on main)
    - Go to repo Settings -> Pages -> Source: GitHub Actions
    - The next push to main will trigger the workflow and publish
-   - URL: https://donozhang1992.github.io/interstellar-craft/
+   - URL: https://wunderforge.github.io/interstellar-craft/
 
 2. ITCH.IO
    - Run: bash scripts/pack-itch.sh

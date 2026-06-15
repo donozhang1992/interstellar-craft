@@ -1,12 +1,13 @@
 ﻿# Deploy Interstellar Craft to GitHub Pages on every push to main.
-# Repo: github.com/donozhang1992/interstellar-craft
-# URL:  https://donozhang1992.github.io/interstellar-craft/
+# Repo: github.com/wunderforge/interstellar-craft
+# URL:  https://wunderforge.github.io/interstellar-craft/
 
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   pages: write

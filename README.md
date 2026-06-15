@@ -7,7 +7,7 @@ hole. You are an engineer stranded on KIPP-7e. Mine, craft, and raise a signal
 beacon to answer a mysterious pulse from a distant green world — before the silence
 answers first.
 
-**Play online:** https://donozhang1992.github.io/interstellar-craft/ *(after GH Pages deploy)*
+**Play online:** https://wunderforge.github.io/interstellar-craft/
 
 - Physically-based black hole sky — real-time Schwarzschild geodesic ray tracing
 - Minecraft-style voxel mining, crafting, and building
