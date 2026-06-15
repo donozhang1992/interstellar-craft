@@ -71,6 +71,10 @@ export class AudioManager {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   /** Active ambient-drone source nodes (so we can stop them). */
   private droneNodes: AudioNode[] = [];
+  /** Active BGM pad nodes (chord + filter chain). */
+  private bgmNodes: AudioNode[] = [];
+  /** Self-scheduling timer for the BGM melodic note layer. */
+  private bgmNoteTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     this.disabled = typeof window !== 'undefined' && window.__TEST__ === true;
@@ -120,6 +124,7 @@ export class AudioManager {
     if (on) {
       this.stopHeartbeat();
       this.stopDrone();
+      this.stopBgm();
     }
   }
 
@@ -232,6 +237,88 @@ export class AudioManager {
       }
     }
     this.droneNodes = [];
+  }
+
+  /**
+   * Start the BGM — a slow A-minor chord pad (bandpass-filtered sawtooth) that
+   * evolves via a sub-Hz filter LFO, plus a self-scheduling melodic note layer
+   * (sparse high notes from A-minor pentatonic, 8–20 s apart). Idempotent.
+   * Gives the "lonely sublime / Interstellar" ambient feel without asset files.
+   */
+  startBgm(): void {
+    if (!this.ready() || this.bgmNodes.length > 0) return;
+    const ctx = this.ctx!;
+
+    const padBus = ctx.createGain();
+    padBus.gain.value = 0;
+    padBus.gain.setTargetAtTime(0.07, ctx.currentTime, 4.0); // slow fade in
+    padBus.connect(this.master!);
+
+    // Bandpass filter with very slow sweep for an evolving texture
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.value = 350;
+    filt.Q.value = 0.7;
+    filt.connect(padBus);
+
+    const filtLfo = ctx.createOscillator();
+    filtLfo.type = 'sine';
+    filtLfo.frequency.value = 0.018;
+    const filtLfoGain = ctx.createGain();
+    filtLfoGain.gain.value = 220;
+    filtLfo.connect(filtLfoGain).connect(filt.frequency);
+    filtLfo.start();
+
+    // A-minor chord: A2, C3, E3 with slight detuning per voice
+    const chordFreqs = [110, 130.81, 164.81];
+    for (const [i, f] of chordFreqs.entries()) {
+      const osc = ctx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.value = f * (1 + (i - 1) * 0.0025);
+      const g = ctx.createGain();
+      g.gain.value = 0.28;
+      osc.connect(g).connect(filt);
+      osc.start();
+      this.bgmNodes.push(osc, g);
+    }
+    this.bgmNodes.push(padBus, filt, filtLfo, filtLfoGain);
+
+    this.scheduleBgmNote();
+  }
+
+  /** Stop the BGM pad + melodic note layer. */
+  stopBgm(): void {
+    if (this.bgmNoteTimer !== null) {
+      clearTimeout(this.bgmNoteTimer);
+      this.bgmNoteTimer = null;
+    }
+    if (this.bgmNodes.length === 0) return;
+    const ctx = this.ctx;
+    for (const n of this.bgmNodes) {
+      if (n instanceof OscillatorNode) {
+        try {
+          n.stop(ctx ? ctx.currentTime + 0.5 : undefined);
+        } catch {
+          /* already stopped */
+        }
+      }
+    }
+    this.bgmNodes = [];
+  }
+
+  /** Self-scheduling random melodic note (A-minor pentatonic, 8–20 s apart). */
+  private scheduleBgmNote(): void {
+    if (this.bgmNodes.length === 0) return;
+    const delay = 8000 + Math.random() * 12000;
+    this.bgmNoteTimer = setTimeout(() => {
+      if (this.ready() && this.bgmNodes.length > 0) {
+        // A-minor pentatonic: A4 C5 D5 E5 G5
+        const notes = [440, 523.25, 587.33, 659.25, 783.99];
+        const freq = notes[Math.floor(Math.random() * notes.length)]!;
+        this.swell('sine', freq, 0.055, 2.5 + Math.random() * 2, 0);
+        this.scheduleBgmNote();
+      }
+    }, delay);
   }
 
   /** True when a cue may actually sound: live, initialized, unmuted. */

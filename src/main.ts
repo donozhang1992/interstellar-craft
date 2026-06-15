@@ -189,6 +189,7 @@ if (!window.__TEST__) {
     // where this onRender is never installed at all).
     if (audio.initialized) {
       audio.startDrone();
+      audio.startBgm();
       if (game.survival.state.o2 < O2_LOW_WARN) audio.startHeartbeat();
       else audio.stopHeartbeat();
     }
