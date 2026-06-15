@@ -116,6 +116,27 @@ game.onCue = (name) => audio.play(name);
 // real play it bobs near spawn (ch1) and drifts up to the antenna-hill height once
 // ch2 begins. Pure visual; driven off the loop's per-frame updater at fixed dt.
 if (!window.__TEST__) {
+  // Controls panel — show for 20 s then fade; H key toggles.
+  const ctrlPanel = document.getElementById('controls');
+  const infoEl = document.getElementById('info');
+  if (ctrlPanel) {
+    ctrlPanel.style.display = 'block';
+    requestAnimationFrame(() => ctrlPanel.classList.add('visible'));
+    if (infoEl) infoEl.textContent = ''; // panel replaces the one-liner
+    let ctrlVisible = true;
+    const autoHide = setTimeout(() => {
+      ctrlPanel.classList.remove('visible');
+      ctrlVisible = false;
+    }, 20000);
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyH' && !e.repeat) {
+        ctrlVisible = !ctrlVisible;
+        ctrlPanel.classList.toggle('visible', ctrlVisible);
+        if (ctrlVisible) clearTimeout(autoHide);
+      }
+    });
+  }
+
   const jelly = createObserverJelly(player.pos.x + 3, player.pos.y + 2, player.pos.z - 3);
   scene.scene.add(jelly.group);
 

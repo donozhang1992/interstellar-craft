@@ -426,7 +426,48 @@
         text-shadow: 0 1px 2px #000;
       }
 
-      /* â”€â”€ Quest objective line (GAME_DESIGN Â§10) — one line, top-right â”€â”€ */
+      /* Controls panel — hidden by default; shown in real play (!__TEST__) */
+      #controls {
+        position: fixed;
+        left: 12px;
+        top: 10px;
+        z-index: 10;
+        pointer-events: none;
+        background: rgba(0, 0, 0, 0.48);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 5px;
+        padding: 7px 10px 5px;
+        color: rgba(200, 210, 255, 0.88);
+        font:
+          11px/1.75 'Segoe UI',
+          system-ui,
+          sans-serif;
+        text-shadow: 0 1px 2px #000;
+        opacity: 0;
+        transition: opacity 0.35s;
+        display: none;
+      }
+      #controls.visible {
+        opacity: 1;
+      }
+      #controls kbd {
+        display: inline-block;
+        min-width: 30px;
+        text-align: center;
+        background: rgba(255, 255, 255, 0.13);
+        border-radius: 3px;
+        padding: 0 4px;
+        font: inherit;
+        margin-right: 5px;
+      }
+      #controls .ctrl-hint {
+        margin-top: 4px;
+        opacity: 0.4;
+        font-size: 10px;
+        letter-spacing: 0.5px;
+      }
+
+      /* -- Quest objective line (GAME_DESIGN §10) — one line, top-right -- */
       #objective {
         position: fixed;
         right: 16px;
@@ -801,6 +842,18 @@
     <div id="itemname"></div>
     <div id="hotbar"></div>
     <div id="info"></div>
+    <div id="controls">
+      <div class="ctrl-row"><kbd>WASD</kbd> Move</div>
+      <div class="ctrl-row"><kbd>Space</kbd> Jump</div>
+      <div class="ctrl-row"><kbd>LMB</kbd> Mine (hold)</div>
+      <div class="ctrl-row"><kbd>RMB</kbd> Place block</div>
+      <div class="ctrl-row"><kbd>1–8</kbd> Hotbar</div>
+      <div class="ctrl-row"><kbd>E</kbd> Interact / salvage</div>
+      <div class="ctrl-row"><kbd>Tab</kbd> Inventory &amp; crafting</div>
+      <div class="ctrl-row"><kbd>C</kbd> O<sub>2</sub> canister</div>
+      <div class="ctrl-row"><kbd>Esc</kbd> Pause / settings</div>
+      <div class="ctrl-hint">[H] hide</div>
+    </div>
     <div id="objective"></div>
     <div id="subtitle"></div>
 
