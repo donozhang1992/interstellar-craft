@@ -19,6 +19,7 @@ import { DecodeOverlay } from './game/decodeUI';
 import { BeaconBlueprint } from './game/beaconBlueprint';
 import { createObserverJelly } from './render/observerJelly';
 import { createCrashPod } from './render/crashPod';
+import { createMinimap } from './render/minimap';
 import { createCrystalBeetle } from './render/crystalBeetle';
 import { createBeetle, stepBeetle } from './core/entity/beetle';
 import { createWreckedDrone } from './render/wreckedDrone';
@@ -145,6 +146,15 @@ if (!window.__TEST__) {
   const podEntity = createCrashPod(game.podPos.x + 1.5, game.podPos.y, game.podPos.z - 1.5);
   scene.scene.add(podEntity.group);
 
+  // Minimap — top-down canvas radar (bottom-right corner). Created here so it
+  // never touches __TEST__ runs; updated each render frame with live world state.
+  const minimap = createMinimap();
+  const minimapWrap = document.getElementById('minimap');
+  if (minimapWrap) {
+    minimapWrap.appendChild(minimap.canvas);
+    minimapWrap.style.display = 'block';
+  }
+
   // Crystal Beetles (GAME_DESIGN §3e/§8) — a few wander cave floors and flee the
   // player; cornered they shed 1 crystal shard. Added ONLY outside __TEST__ (like
   // the jelly) so the byte-identical world/sky baselines never see these moving
@@ -230,6 +240,16 @@ if (!window.__TEST__) {
     droneView.syncTo(game.drone.pos[0], game.drone.pos[1], game.drone.pos[2]);
     droneView.setRepaired(game.drone.repaired);
     droneView.update(dt);
+    minimap.update(
+      world,
+      player.pos.x,
+      player.pos.z,
+      game.podPos.x,
+      game.podPos.z,
+      game.quest.state.chapter === 1,
+      jelly.group.position.x,
+      jelly.group.position.z,
+    );
   };
 }
 
