@@ -18,6 +18,7 @@ import { installHooks } from './game/hooks';
 import { DecodeOverlay } from './game/decodeUI';
 import { BeaconBlueprint } from './game/beaconBlueprint';
 import { createObserverJelly } from './render/observerJelly';
+import { createCrashPod } from './render/crashPod';
 import { createCrystalBeetle } from './render/crystalBeetle';
 import { createBeetle, stepBeetle } from './core/entity/beetle';
 import { createWreckedDrone } from './render/wreckedDrone';
@@ -140,6 +141,10 @@ if (!window.__TEST__) {
   const jelly = createObserverJelly(player.pos.x + 3, player.pos.y + 2, player.pos.z - 3);
   scene.scene.add(jelly.group);
 
+  // Crash Pod — visible wreck at spawn so ch1 "Salvage [E]" has a clear target.
+  const podEntity = createCrashPod(game.podPos.x + 1.5, game.podPos.y, game.podPos.z - 1.5);
+  scene.scene.add(podEntity.group);
+
   // Crystal Beetles (GAME_DESIGN §3e/§8) — a few wander cave floors and flee the
   // player; cornered they shed 1 crystal shard. Added ONLY outside __TEST__ (like
   // the jelly) so the byte-identical world/sky baselines never see these moving
@@ -210,6 +215,12 @@ if (!window.__TEST__) {
     }
     jelly.setTarget(tx, ty, tz);
     jelly.update(dt);
+    // Crash pod [E] prompt — billboard faces camera; hidden once ch1 salvaged.
+    const bb = (podEntity.group as THREE.Group & { billboardTarget?: THREE.Mesh }).billboardTarget;
+    if (bb) {
+      bb.visible = game.quest.state.chapter === 1;
+      if (bb.visible) bb.lookAt(scene.camera.position);
+    }
     for (const b of beetles) {
       b.view.syncTo(b.core.pos[0], b.core.pos[1], b.core.pos[2]);
       b.view.setShed(b.core.shed);
