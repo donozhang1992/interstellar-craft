@@ -166,9 +166,28 @@ if (!window.__TEST__) {
       if (game.survival.state.o2 < O2_LOW_WARN) audio.startHeartbeat();
       else audio.stopHeartbeat();
     }
-    // ch1: hover near the pod; ch2+: lift toward a "raise the mast" beacon point.
-    const ch2 = game.quest.state.chapter >= 2;
-    jelly.setTarget(player.pos.x + 3, ch2 ? player.pos.y + 8 : player.pos.y + 2, player.pos.z - 3);
+    // Jelly hovers at the CURRENT QUEST TARGET (fixed world location), not the player.
+    // ch1 → above the crash pod; ch2 → high above pod ("raise the mast");
+    // ch3 → cave-depth level; ch4+ → above the beacon column if built.
+    const pod = game.podPos;
+    const ch = game.quest.state.chapter;
+    let tx = pod.x,
+      tz = pod.z;
+    const ty =
+      ch === 1
+        ? pod.y + 4
+        : ch === 2
+          ? pod.y + 16
+          : ch === 3
+            ? 12
+            : game.beaconPos
+              ? pod.y + 10
+              : pod.y + 8;
+    if (ch >= 4 && game.beaconPos) {
+      tx = game.beaconPos.x;
+      tz = game.beaconPos.z;
+    }
+    jelly.setTarget(tx, ty, tz);
     jelly.update(dt);
     for (const b of beetles) {
       b.view.syncTo(b.core.pos[0], b.core.pos[1], b.core.pos[2]);

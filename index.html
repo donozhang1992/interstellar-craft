@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -170,7 +170,7 @@
         background: #ffd98a;
       }
 
-      /* â”€â”€ Inventory + crafting overlay (Tab) â€” GAME_DESIGN Â§10 dark panel â”€â”€ */
+      /* â”€â”€ Inventory + crafting overlay (Tab) — GAME_DESIGN Â§10 dark panel â”€â”€ */
       #invcraft {
         position: fixed;
         inset: 0;
@@ -288,7 +288,7 @@
         color: #e08a8a;
       }
 
-      /* â”€â”€ Survival stat bars (GAME_DESIGN Â§10) â€” HP / Oâ‚‚ / Energy bottom-left â”€â”€ */
+      /* â”€â”€ Survival stat bars (GAME_DESIGN Â§10) — HP / O<sub>2</sub> / Energy bottom-left â”€â”€ */
       #stats {
         position: fixed;
         left: 14px;
@@ -336,7 +336,7 @@
       .stat.energy .stat-fill {
         background: linear-gradient(90deg, #ffc24a, #ffd98a);
       }
-      /* Oâ‚‚ low-warning (< 25): pulse the label + bar so it reads as urgent. */
+      /* O<sub>2</sub> low-warning (< 25): pulse the label + bar so it reads as urgent. */
       .stat.o2.low .stat-label {
         color: #ff6b6b;
       }
@@ -426,7 +426,7 @@
         text-shadow: 0 1px 2px #000;
       }
 
-      /* â”€â”€ Quest objective line (GAME_DESIGN Â§10) â€” one line, top-right â”€â”€ */
+      /* â”€â”€ Quest objective line (GAME_DESIGN Â§10) — one line, top-right â”€â”€ */
       #objective {
         position: fixed;
         right: 16px;
@@ -444,7 +444,7 @@
         text-shadow: 0 1px 3px #000;
       }
       #objective::before {
-        content: 'â—ˆ ';
+        content: '◈ ';
         color: #ffd98a;
       }
 
@@ -560,7 +560,7 @@
         background: rgba(255, 217, 138, 0.2);
       }
 
-      /* â”€â”€ Beacon blueprint panel (ch4, GAME_DESIGN Â§3d) â€” passive build hint â”€â”€ */
+      /* â”€â”€ Beacon blueprint panel (ch4, GAME_DESIGN Â§3d) — passive build hint â”€â”€ */
       #beacon-blueprint {
         position: fixed;
         right: 16px;
@@ -618,7 +618,7 @@
         color: #7e88b4;
       }
 
-      /* â”€â”€ Ending cinematic overlay (ch5 Â§3f) â€” letterboxed sequel-hook band â”€â”€ */
+      /* â”€â”€ Ending cinematic overlay (ch5 Â§3f) — letterboxed sequel-hook band â”€â”€ */
       #ending {
         position: fixed;
         inset: 0;
@@ -824,16 +824,16 @@
 
     <div id="beacon-blueprint">
       <h3>BEACON BLUEPRINT</h3>
-      <div class="bp-row"><span class="bp-ico cap"></span>Antenna cap Ã—1</div>
-      <div class="bp-row"><span class="bp-ico core"></span>Beacon-core Ã—6</div>
-      <div class="bp-row"><span class="bp-ico pad"></span>Launchpad Ã—1 (on ground)</div>
-      <div class="bp-hint">Stack pad â†’ 6 cores â†’ antenna. [B] hide</div>
+      <div class="bp-row"><span class="bp-ico cap"></span>Antenna cap ×1</div>
+      <div class="bp-row"><span class="bp-ico core"></span>Beacon-core ×6</div>
+      <div class="bp-row"><span class="bp-ico pad"></span>Launchpad ×1 (on ground)</div>
+      <div class="bp-hint">Stack pad → 6 cores → antenna. [B] hide</div>
     </div>
 
     <div id="ending">
       <div class="bar top"></div>
       <div class="bar bottom"></div>
-      <div class="caption">A SIGNAL ANSWERED â€” SOMETHING IS LISTENING</div>
+      <div class="caption">A SIGNAL ANSWERED — SOMETHING IS LISTENING</div>
       <div class="skip">PRESS ANY KEY TO SKIP</div>
     </div>
 
@@ -850,7 +850,7 @@
         <div class="stat-track"><div class="stat-fill" id="stat-hp-fill"></div></div>
       </div>
       <div class="stat o2" id="stat-o2">
-        <span class="stat-label">Oâ‚‚</span>
+        <span class="stat-label">O<sub>2</sub></span>
         <div class="stat-track"><div class="stat-fill" id="stat-o2-fill"></div></div>
       </div>
       <div class="stat energy" id="stat-energy">
